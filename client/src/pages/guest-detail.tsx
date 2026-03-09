@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import {
-  ArrowLeft, Crown, Users, Phone, FileText, Calendar, CreditCard,
+  ArrowLeft, Crown, Users, Phone, FileText, Calendar, CreditCard, Banknote,
 } from "lucide-react";
-import type { Guest, Booking } from "@shared/schema";
+import type { Guest, Booking, Transaction } from "@shared/schema";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -71,20 +71,20 @@ function MedicalHistoryViewer({ data }: { data: unknown }) {
 export default function GuestDetailPage() {
   const [, params] = useRoute("/guests/:id");
   const guestId = params?.id;
+  return guestId ? <GuestDetailContent key={guestId} guestId={guestId} /> : null;
+}
 
+function GuestDetailContent({ guestId }: { guestId: string }) {
   const { data: guest, isLoading: guestLoading } = useQuery<Guest>({
     queryKey: ["/api/guests", guestId],
-    enabled: !!guestId,
   });
 
   const { data: familyMembers = [] } = useQuery<Guest[]>({
     queryKey: ["/api/guests", guestId, "family"],
-    enabled: !!guestId,
   });
 
   const { data: guestBookings = [] } = useQuery<Booking[]>({
     queryKey: ["/api/guests", guestId, "bookings"],
-    enabled: !!guestId,
   });
 
   const { data: allGuests = [] } = useQuery<Guest[]>({
@@ -279,33 +279,72 @@ export default function GuestDetailPage() {
               Захиалга байхгүй
             </p>
           ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Орох</TableHead>
-                    <TableHead>Гарах</TableHead>
-                    <TableHead>Төлөв</TableHead>
-                    <TableHead>Нийт дүн</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {guestBookings.map((booking) => (
-                    <TableRow key={booking.id}>
-                      <TableCell>{new Date(booking.checkIn).toLocaleDateString("mn-MN")}</TableCell>
-                      <TableCell>{new Date(booking.checkOut).toLocaleDateString("mn-MN")}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{booking.status}</Badge>
-                      </TableCell>
-                      <TableCell>{Number(booking.totalAmount).toLocaleString()}₮</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <div className="space-y-3">
+              {guestBookings.map((booking) => (
+                <BookingCard key={booking.id} booking={booking} />
+              ))}
             </div>
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+const bookingStatusLabels: Record<string, string> = {
+  PENDING: "Хүлээгдэж буй",
+  CONFIRMED: "Баталгаажсан",
+  CHECKED_IN: "Check-in",
+  CHECKED_OUT: "Check-out",
+  CANCELLED: "Цуцлагдсан",
+};
+
+function BookingCard({ booking }: { booking: Booking }) {
+  const { data: txns = [] } = useQuery<Transaction[]>({
+    queryKey: ["/api/bookings", booking.id, "transactions"],
+  });
+
+  const totalPaid = txns.reduce((sum, t) => sum + Number(t.amount), 0);
+  const balance = Number(booking.totalAmount) - totalPaid;
+
+  return (
+    <div className="rounded-md border p-3 space-y-2" data-testid={`card-booking-${booking.id}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm">
+          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+          <span>{new Date(booking.checkIn).toLocaleDateString("mn-MN")} - {new Date(booking.checkOut).toLocaleDateString("mn-MN")}</span>
+        </div>
+        <Badge variant="outline">{bookingStatusLabels[booking.status] || booking.status}</Badge>
+      </div>
+      <div className="flex items-center gap-4 text-xs">
+        <span>Нийт: <strong>{Number(booking.totalAmount).toLocaleString()}₮</strong></span>
+        <span>Төлсөн: <strong>{totalPaid.toLocaleString()}₮</strong></span>
+        <span className={balance > 0 ? "text-destructive" : ""}>Үлдэгдэл: <strong>{balance.toLocaleString()}₮</strong></span>
+      </div>
+      {txns.length > 0 && (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs">Огноо</TableHead>
+                <TableHead className="text-xs">Төрөл</TableHead>
+                <TableHead className="text-xs">Хэлбэр</TableHead>
+                <TableHead className="text-xs text-right">Дүн</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {txns.map((txn) => (
+                <TableRow key={txn.id}>
+                  <TableCell className="text-xs">{new Date(txn.createdAt).toLocaleDateString("mn-MN")}</TableCell>
+                  <TableCell className="text-xs">{txn.type === "DEPOSIT" ? "Урьдчилгаа" : "Эцсийн"}</TableCell>
+                  <TableCell className="text-xs">{txn.paymentMethod === "CASH" ? "Бэлэн" : txn.paymentMethod === "CARD" ? "Карт" : "Шилжүүлэг"}</TableCell>
+                  <TableCell className="text-xs text-right">{Number(txn.amount).toLocaleString()}₮</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 }

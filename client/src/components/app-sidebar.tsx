@@ -16,7 +16,7 @@ const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Өрөөнүүд", url: "/room-grid", icon: Grid3X3 },
   { title: "Зочид", url: "/guests", icon: Users },
-  { title: "Billing", url: "/billing", icon: CreditCard },
+  { title: "Төлбөр", url: "/billing", icon: CreditCard },
 ];
 
 const settingsItems = [

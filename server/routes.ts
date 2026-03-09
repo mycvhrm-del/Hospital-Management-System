@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertRoomCategorySchema, insertRoomSchema, insertGuestSchema, insertBookingSchema } from "@shared/schema";
+import { insertRoomCategorySchema, insertRoomSchema, insertGuestSchema, insertBookingSchema, insertTransactionSchema } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -191,11 +191,22 @@ export async function registerRoutes(
   app.post("/api/bookings", async (req, res) => {
     const parsed = insertBookingSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
-    const existing = await storage.getActiveBookingForRoom(parsed.data.roomId);
-    if (existing) return res.status(409).json({ message: "Энэ өрөөнд идэвхтэй захиалга байна" });
+
+    const checkIn = new Date(parsed.data.checkIn);
+    const checkOut = new Date(parsed.data.checkOut);
+
+    const overlap = await storage.checkBookingOverlap(parsed.data.roomId, checkIn, checkOut);
+    if (overlap) {
+      return res.status(409).json({ message: "Энэ хугацаанд өрөөнд захиалга давхцаж байна" });
+    }
+
     try {
-      const booking = await storage.createBooking(parsed.data);
-      await storage.updateRoom(parsed.data.roomId, { status: "OCCUPIED" });
+      const booking = await storage.createBooking({
+        ...parsed.data,
+        status: "PENDING",
+        depositPaid: "0",
+      });
+      await storage.updateRoom(parsed.data.roomId, { status: "PENDING" });
       res.status(201).json(booking);
     } catch (err: any) {
       throw err;
@@ -212,10 +223,92 @@ export async function registerRoutes(
     const booking = await storage.updateBookingStatus(req.params.id, status);
     if (!booking) return res.status(404).json({ message: "Booking not found" });
 
-    if (status === "CHECKED_OUT" || status === "CANCELLED") {
+    if (status === "CHECKED_IN") {
+      await storage.updateRoom(booking.roomId, { status: "OCCUPIED" });
+    } else if (status === "CHECKED_OUT" || status === "CANCELLED") {
       await storage.updateRoom(booking.roomId, { status: "CLEANING" });
+    } else if (status === "CONFIRMED") {
+      await storage.updateRoom(booking.roomId, { status: "PENDING" });
     }
     res.json(booking);
+  });
+
+  app.post("/api/transactions", async (req, res) => {
+    const parsed = insertTransactionSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+
+    const txn = await storage.createTransaction(parsed.data);
+
+    const allTxns = await storage.getBookingTransactions(parsed.data.bookingId);
+    const totalPaid = allTxns.reduce((sum, t) => sum + Number(t.amount), 0);
+    await storage.updateBooking(parsed.data.bookingId, { depositPaid: String(totalPaid) });
+
+    if (parsed.data.type === "DEPOSIT") {
+      const booking = await storage.updateBookingStatus(parsed.data.bookingId, "CONFIRMED");
+      if (booking) {
+        const activeBooking = await storage.getActiveBookingForRoom(booking.roomId);
+        if (activeBooking && activeBooking.status === "CONFIRMED") {
+          await storage.updateRoom(booking.roomId, { status: "PENDING" });
+        }
+      }
+    }
+
+    res.status(201).json(txn);
+  });
+
+  app.get("/api/family-bill/:parentId", async (req, res) => {
+    const parentId = req.params.parentId;
+    const parent = await storage.getGuest(parentId);
+    if (!parent) return res.status(404).json({ message: "Зочин олдсонгүй" });
+
+    const familyMembers = await storage.getFamilyMembers(parentId);
+    const allMembers = [parent, ...familyMembers];
+    const familyBookings = await storage.getFamilyBookings(parentId);
+    const bookingIds = familyBookings.map(b => b.id);
+    const allTransactions = await storage.getTransactionsByBookingIds(bookingIds);
+    const rooms = await storage.getRooms();
+    const categories = await storage.getRoomCategories();
+    const roomMap = Object.fromEntries(rooms.map(r => [r.id, r]));
+    const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
+
+    const billItems = familyBookings.map(b => {
+      const guest = allMembers.find(m => m.id === b.guestId);
+      const room = roomMap[b.roomId];
+      const category = room ? catMap[room.categoryId] : null;
+      const txns = allTransactions.filter(t => t.bookingId === b.id);
+      const totalPaid = txns.reduce((sum, t) => sum + Number(t.amount), 0);
+
+      return {
+        bookingId: b.id,
+        guestName: guest ? `${guest.lastName} ${guest.firstName}` : "—",
+        roomNumber: room?.roomNumber || "—",
+        categoryName: category?.name || "—",
+        checkIn: b.checkIn,
+        checkOut: b.checkOut,
+        status: b.status,
+        totalAmount: Number(b.totalAmount),
+        totalPaid,
+        balance: Number(b.totalAmount) - totalPaid,
+        transactions: txns,
+      };
+    });
+
+    const grandTotal = billItems.reduce((s, i) => s + i.totalAmount, 0);
+    const grandPaid = billItems.reduce((s, i) => s + i.totalPaid, 0);
+
+    res.json({
+      family: {
+        parent: { id: parent.id, name: `${parent.lastName} ${parent.firstName}`, phone: parent.phone },
+        memberCount: allMembers.length,
+      },
+      items: billItems,
+      summary: {
+        grandTotal,
+        grandPaid,
+        grandBalance: grandTotal - grandPaid,
+      },
+      generatedAt: new Date().toISOString(),
+    });
   });
 
   return httpServer;

@@ -41,10 +41,25 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - `GET /api/guests/:id/bookings` - Guest bookings
 - `GET /api/guests/:id/family-bookings` - All family bookings
 - `GET /api/bookings` - All bookings
-- `POST /api/bookings` - Create booking (also sets room to OCCUPIED)
-- `PATCH /api/bookings/:id/status` - Update booking status (CHECKED_OUT sets room to CLEANING)
+- `POST /api/bookings` - Create booking (with overlap check, sets room to PENDING)
+- `PATCH /api/bookings/:id/status` - Update booking status (manages room status transitions)
 - `GET /api/bookings/:id/transactions` - Booking transactions
+- `POST /api/transactions` - Create payment (DEPOSIT auto-confirms booking)
 - `GET /api/room-grid` - Enriched room data with active bookings and guest info
+- `GET /api/family-bill/:parentId` - Family bill with all bookings, transactions, totals
+
+## Booking Flow
+- Create booking → PENDING (room=PENDING)
+- Pay DEPOSIT → CONFIRMED (room stays PENDING)
+- CHECK_IN → room=OCCUPIED
+- CHECK_OUT → room=CLEANING
+- Cleaning done → room=AVAILABLE
+
+## Room Status Colors (Room Grid)
+- Green: AVAILABLE
+- Red: OCCUPIED (Дүүрсэн)
+- Yellow: PENDING
+- Gray: CLEANING
 
 ## Seed Data
 - 4 room categories, 9 rooms

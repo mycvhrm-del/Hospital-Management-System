@@ -19,8 +19,8 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/room-grid" component={RoomGridPage} />
       <Route path="/settings" component={SettingsPage} />
-      <Route path="/guests" component={GuestsPage} />
       <Route path="/guests/:id" component={GuestDetailPage} />
+      <Route path="/guests" component={GuestsPage} />
       <Route path="/billing" component={BillingPage} />
       <Route component={NotFound} />
     </Switch>

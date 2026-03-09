@@ -1,4 +1,4 @@
-import { eq, inArray, and, or } from "drizzle-orm";
+import { eq, inArray, and, or, ne, lt, gt, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import {
   roomCategories, rooms, guests, bookings, transactions,
@@ -35,8 +35,12 @@ export interface IStorage {
   getAllBookings(): Promise<Booking[]>;
   getBookingTransactions(bookingId: string): Promise<Transaction[]>;
   getActiveBookingForRoom(roomId: string): Promise<Booking | undefined>;
+  checkBookingOverlap(roomId: string, checkIn: Date, checkOut: Date, excludeBookingId?: string): Promise<Booking | undefined>;
   createBooking(data: any): Promise<Booking>;
+  updateBooking(id: string, data: Partial<any>): Promise<Booking | undefined>;
   updateBookingStatus(id: string, status: string): Promise<Booking | undefined>;
+  createTransaction(data: any): Promise<Transaction>;
+  getTransactionsByBookingIds(bookingIds: string[]): Promise<Transaction[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -148,14 +152,47 @@ export class DatabaseStorage implements IStorage {
     return booking;
   }
 
+  async checkBookingOverlap(roomId: string, checkIn: Date, checkOut: Date, excludeBookingId?: string): Promise<Booking | undefined> {
+    const conditions = [
+      eq(bookings.roomId, roomId),
+      lt(bookings.checkIn, checkOut),
+      gt(bookings.checkOut, checkIn),
+      or(
+        eq(bookings.status, "PENDING"),
+        eq(bookings.status, "CONFIRMED"),
+        eq(bookings.status, "CHECKED_IN")
+      ),
+    ];
+    if (excludeBookingId) {
+      conditions.push(ne(bookings.id, excludeBookingId));
+    }
+    const [overlap] = await db.select().from(bookings).where(and(...conditions));
+    return overlap;
+  }
+
   async createBooking(data: any): Promise<Booking> {
     const [booking] = await db.insert(bookings).values(data).returning();
+    return booking;
+  }
+
+  async updateBooking(id: string, data: Partial<any>): Promise<Booking | undefined> {
+    const [booking] = await db.update(bookings).set(data).where(eq(bookings.id, id)).returning();
     return booking;
   }
 
   async updateBookingStatus(id: string, status: string): Promise<Booking | undefined> {
     const [booking] = await db.update(bookings).set({ status: status as any }).where(eq(bookings.id, id)).returning();
     return booking;
+  }
+
+  async createTransaction(data: any): Promise<Transaction> {
+    const [txn] = await db.insert(transactions).values(data).returning();
+    return txn;
+  }
+
+  async getTransactionsByBookingIds(bookingIds: string[]): Promise<Transaction[]> {
+    if (bookingIds.length === 0) return [];
+    return db.select().from(transactions).where(inArray(transactions.bookingId, bookingIds));
   }
 }
 
