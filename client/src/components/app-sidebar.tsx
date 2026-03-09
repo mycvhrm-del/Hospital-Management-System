@@ -1,5 +1,5 @@
 import { useLocation, Link } from "wouter";
-import { LayoutDashboard, Settings, BedDouble } from "lucide-react";
+import { LayoutDashboard, Settings, BedDouble, Users, CreditCard } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -14,6 +14,8 @@ import {
 
 const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Зочид", url: "/guests", icon: Users },
+  { title: "Billing", url: "/billing", icon: CreditCard },
 ];
 
 const settingsItems = [
@@ -22,6 +24,11 @@ const settingsItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
+
+  const isActive = (url: string) => {
+    if (url === "/") return location === "/";
+    return location === url || location.startsWith(url + "/");
+  };
 
   return (
     <Sidebar>
@@ -43,7 +50,7 @@ export function AppSidebar() {
             <SidebarMenu>
               {mainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild data-active={location === item.url}>
+                  <SidebarMenuButton asChild data-active={isActive(item.url)}>
                     <Link href={item.url} data-testid={`nav-${item.title.toLowerCase()}`}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
@@ -61,7 +68,7 @@ export function AppSidebar() {
             <SidebarMenu>
               {settingsItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild data-active={location === item.url || location.startsWith("/settings")}>
+                  <SidebarMenuButton asChild data-active={isActive(item.url)}>
                     <Link href={item.url} data-testid={`nav-${item.title.toLowerCase()}`}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>

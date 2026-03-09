@@ -8,12 +8,18 @@ import { AppSidebar } from "@/components/app-sidebar";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import SettingsPage from "@/pages/settings";
+import GuestsPage from "@/pages/guests";
+import GuestDetailPage from "@/pages/guest-detail";
+import BillingPage from "@/pages/billing";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/settings" component={SettingsPage} />
+      <Route path="/guests" component={GuestsPage} />
+      <Route path="/guests/:id" component={GuestDetailPage} />
+      <Route path="/billing" component={BillingPage} />
       <Route component={NotFound} />
     </Switch>
   );

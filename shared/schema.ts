@@ -29,7 +29,7 @@ export const guests = pgTable("guests", {
   medicalHistory: json("medical_history"),
   isVip: boolean("is_vip").default(false).notNull(),
   loyaltyPoints: integer("loyalty_points").default(0).notNull(),
-  parentId: varchar("parent_id"),
+  parentId: varchar("parent_id").references((): any => guests.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
