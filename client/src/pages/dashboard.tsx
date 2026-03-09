@@ -30,7 +30,7 @@ export default function Dashboard() {
       description: "Захиалгад бэлэн",
     },
     {
-      title: "Эзэлсэн",
+      title: "Дүүрсэн",
       value: occupiedRooms,
       icon: AlertTriangle,
       description: "Одоогоор ашиглагдаж буй",

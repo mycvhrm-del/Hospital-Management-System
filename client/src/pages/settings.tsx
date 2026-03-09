@@ -73,7 +73,7 @@ type RoomFormValues = z.infer<typeof roomFormSchema>;
 
 const statusLabels: Record<string, string> = {
   AVAILABLE: "Сул",
-  OCCUPIED: "Эзэлсэн",
+  OCCUPIED: "Дүүрсэн",
   PENDING: "Хүлээгдэж буй",
   CLEANING: "Цэвэрлэж буй",
 };
@@ -620,7 +620,7 @@ function RoomSection() {
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="AVAILABLE">Сул</SelectItem>
-                        <SelectItem value="OCCUPIED">Эзэлсэн</SelectItem>
+                        <SelectItem value="OCCUPIED">Дүүрсэн</SelectItem>
                         <SelectItem value="PENDING">Хүлээгдэж буй</SelectItem>
                         <SelectItem value="CLEANING">Цэвэрлэж буй</SelectItem>
                       </SelectContent>

@@ -57,7 +57,7 @@ const statusConfig = {
     icon: CheckCircle,
   },
   OCCUPIED: {
-    label: "Эзэлсэн",
+    label: "Дүүрсэн",
     bgClass: "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800",
     dotClass: "bg-rose-500",
     textClass: "text-rose-700 dark:text-rose-400",
@@ -379,7 +379,7 @@ export default function RoomGridPage() {
         </div>
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded-full bg-rose-500" />
-          <span className="text-muted-foreground">Эзэлсэн ({stats.occupied})</span>
+          <span className="text-muted-foreground">Дүүрсэн ({stats.occupied})</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded-full bg-amber-500" />
