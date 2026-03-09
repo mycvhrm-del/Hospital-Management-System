@@ -33,6 +33,7 @@ const bookingFormSchema = z.object({
   checkIn: z.string().min(1, "Орох огноо оруулна уу"),
   checkOut: z.string().min(1, "Гарах огноо оруулна уу"),
   totalAmount: z.string().min(1, "Дүн оруулна уу"),
+  depositAmount: z.string().default("0"),
 });
 
 type BookingFormValues = z.infer<typeof bookingFormSchema>;
@@ -202,7 +203,7 @@ export default function BookingsPage() {
 
   const form = useForm<BookingFormValues>({
     resolver: zodResolver(bookingFormSchema),
-    defaultValues: { guestId: "", roomId: "", checkIn: "", checkOut: "", totalAmount: "0" },
+    defaultValues: { guestId: "", roomId: "", checkIn: "", checkOut: "", totalAmount: "0", depositAmount: "0" },
   });
 
   const selectedRoomId = form.watch("roomId");
@@ -229,7 +230,7 @@ export default function BookingsPage() {
     setGuestSearch("");
     setShowNewGuestForm(false);
     newGuestForm.reset();
-    form.reset({ guestId: "", roomId: "", checkIn: "", checkOut: "", totalAmount: "0" });
+    form.reset({ guestId: "", roomId: "", checkIn: "", checkOut: "", totalAmount: "0", depositAmount: "0" });
     setDialogOpen(true);
   };
 
@@ -241,6 +242,7 @@ export default function BookingsPage() {
         checkIn: new Date(data.checkIn).toISOString(),
         checkOut: new Date(data.checkOut).toISOString(),
         serviceIds: data.serviceIds,
+        depositAmount: data.depositAmount,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
@@ -880,6 +882,32 @@ export default function BookingsPage() {
                   </div>
                 </div>
               </div>
+
+              <FormField
+                control={form.control}
+                name="depositAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Урьдчилгаа төлбөр (₮)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="0"
+                        max={grandTotal}
+                        placeholder="0"
+                        {...field}
+                        data-testid="input-deposit-amount"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                    {Number(field.value) > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Урьдчилгаа төлсөн тохиолдолд захиалга автоматаар баталгаажна
+                      </p>
+                    )}
+                  </FormItem>
+                )}
+              />
 
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}

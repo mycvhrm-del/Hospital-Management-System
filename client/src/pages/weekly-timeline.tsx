@@ -105,6 +105,7 @@ function getDays(start: Date): Date[] {
 const quickBookingSchema = z.object({
   guestSearch: z.string().min(2, "2+ тэмдэгт оруулна уу"),
   checkOut: z.string().min(1, "Гарах огноо оруулна уу"),
+  depositAmount: z.string().default("0"),
 });
 
 type QuickBookingForm = z.infer<typeof quickBookingSchema>;
@@ -141,11 +142,11 @@ export default function WeeklyTimelinePage() {
 
   const form = useForm<QuickBookingForm>({
     resolver: zodResolver(quickBookingSchema),
-    defaultValues: { guestSearch: "", checkOut: "" },
+    defaultValues: { guestSearch: "", checkOut: "", depositAmount: "0" },
   });
 
   const bookingMutation = useMutation({
-    mutationFn: (data: { guestId: string; roomId: string; checkIn: string; checkOut: string }) =>
+    mutationFn: (data: { guestId: string; roomId: string; checkIn: string; checkOut: string; depositAmount?: string }) =>
       apiRequest("POST", "/api/bookings", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/weekly-timeline"] });
@@ -180,7 +181,7 @@ export default function WeeklyTimelinePage() {
     setQuickBookDate(formatDate(date));
     const nextDay = new Date(date);
     nextDay.setDate(nextDay.getDate() + 1);
-    form.reset({ guestSearch: "", checkOut: formatDate(nextDay) });
+    form.reset({ guestSearch: "", checkOut: formatDate(nextDay), depositAmount: "0" });
     setSelectedGuest(null);
     setSearchResults([]);
     setQuickBookOpen(true);
@@ -202,12 +203,14 @@ export default function WeeklyTimelinePage() {
   const submitQuickBooking = () => {
     if (!selectedGuest || !quickBookRoom || !quickBookDate) return;
     const checkOut = form.getValues("checkOut");
+    const depositAmount = form.getValues("depositAmount");
     if (!checkOut) return;
     bookingMutation.mutate({
       guestId: selectedGuest.id,
       roomId: quickBookRoom.id,
       checkIn: new Date(quickBookDate).toISOString(),
       checkOut: new Date(checkOut).toISOString(),
+      depositAmount: depositAmount || "0",
     });
   };
 
@@ -389,6 +392,31 @@ export default function WeeklyTimelinePage() {
                       <Input type="date" {...field} data-testid="input-quick-checkout" />
                     </FormControl>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="depositAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Урьдчилгаа төлбөр (₮)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        {...field}
+                        data-testid="input-quick-deposit"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                    {Number(field.value) > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Урьдчилгаа төлсөн тохиолдолд захиалга автоматаар баталгаажна
+                      </p>
+                    )}
                   </FormItem>
                 )}
               />

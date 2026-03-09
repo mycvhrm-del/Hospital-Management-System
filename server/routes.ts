@@ -208,7 +208,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/bookings", async (req, res) => {
-    const { serviceIds, ...bookingData } = req.body;
+    const { serviceIds, depositAmount, ...bookingData } = req.body;
     if (bookingData.checkIn) bookingData.checkIn = new Date(bookingData.checkIn);
     if (bookingData.checkOut) bookingData.checkOut = new Date(bookingData.checkOut);
     const parsed = insertBookingSchema.safeParse(bookingData);
@@ -242,14 +242,27 @@ export async function registerRoutes(
       }
 
       const serverTotal = roomTotal + servicesTotalAmount;
+      const parsedDeposit = depositAmount ? Number(depositAmount) : 0;
+      const validDeposit = !isNaN(parsedDeposit) && parsedDeposit > 0
+        ? Math.min(parsedDeposit, serverTotal)
+        : 0;
 
       const booking = await storage.createBooking({
         ...parsed.data,
         totalAmount: String(serverTotal),
-        status: "PENDING",
-        depositPaid: "0",
+        status: validDeposit > 0 ? "CONFIRMED" : "PENDING",
+        depositPaid: String(validDeposit),
       });
       await storage.updateRoom(parsed.data.roomId, { status: "PENDING" });
+
+      if (validDeposit > 0) {
+        await storage.createTransaction({
+          bookingId: booking.id,
+          amount: String(validDeposit),
+          type: "DEPOSIT",
+          paymentMethod: "CASH",
+        });
+      }
 
       for (const svc of servicesToAdd) {
         await storage.addBookingService({
