@@ -317,7 +317,7 @@ export default function BookingsPage() {
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-auto">
           <DialogHeader>
             <DialogTitle data-testid="text-booking-dialog-title">Шинэ захиалга</DialogTitle>
-            <DialogDescription>Өрөө, зочин, үйлчилгээ сонгож захиалга үүсгэнэ үү</DialogDescription>
+            <DialogDescription>Өрөө, зочин, эмчилгээ сонгож захиалга үүсгэнэ үү</DialogDescription>
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
@@ -569,7 +569,7 @@ export default function BookingsPage() {
 
               {activeServices.length > 0 && (
                 <div className="space-y-3">
-                  <FormLabel>Үйлчилгээ / Багц сонгох</FormLabel>
+                  <FormLabel>Эмчилгээ / Багц сонгох</FormLabel>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[200px] overflow-auto rounded-md border p-3">
                     {activeServices.map((svc) => (
                       <label
@@ -585,7 +585,7 @@ export default function BookingsPage() {
                           <div className="flex items-center gap-1.5">
                             <span className="text-sm font-medium">{svc.name}</span>
                             <Badge variant={svc.type === "PACKAGE" ? "default" : "outline"} className="text-[10px] px-1.5 py-0">
-                              {svc.type === "SERVICE" ? "Үйлч." : "Багц"}
+                              {svc.type === "SERVICE" ? "Эмч." : "Багц"}
                             </Badge>
                           </div>
                           {svc.description && (

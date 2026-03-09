@@ -80,7 +80,7 @@ export default function ServicesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
       setDialogOpen(false);
-      toast({ title: "Амжилттай", description: "Үйлчилгээ нэмэгдлээ" });
+      toast({ title: "Амжилттай", description: "Эмчилгээ нэмэгдлээ" });
     },
     onError: (err: Error) => {
       toast({ title: "Алдаа", description: err.message, variant: "destructive" });
@@ -93,7 +93,7 @@ export default function ServicesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
       setDialogOpen(false);
-      toast({ title: "Амжилттай", description: "Үйлчилгээ шинэчлэгдлээ" });
+      toast({ title: "Амжилттай", description: "Эмчилгээ шинэчлэгдлээ" });
     },
     onError: (err: Error) => {
       toast({ title: "Алдаа", description: err.message, variant: "destructive" });
@@ -105,7 +105,7 @@ export default function ServicesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
       setDeleteId(null);
-      toast({ title: "Амжилттай", description: "Үйлчилгээ устгагдлаа" });
+      toast({ title: "Амжилттай", description: "Эмчилгээ устгагдлаа" });
     },
     onError: (err: Error) => {
       toast({ title: "Алдаа", description: err.message, variant: "destructive" });
@@ -129,15 +129,15 @@ export default function ServicesPage() {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-services-title">
-            Эмчилгээ / Үйлчилгээ
+            Эмчилгээ
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Эмчилгээ, үйлчилгээ болон багцуудын бүртгэл
+            Эмчилгээ болон багцуудын бүртгэл
           </p>
         </div>
         <Button onClick={openCreate} data-testid="button-add-service">
           <Plus className="h-4 w-4 mr-2" />
-          Шинэ үйлчилгээ
+          Шинэ эмчилгээ
         </Button>
       </div>
 
@@ -148,7 +148,7 @@ export default function ServicesPage() {
           </TabsTrigger>
           <TabsTrigger value="SERVICE" data-testid="tab-services-only">
             <Stethoscope className="h-3.5 w-3.5 mr-1.5" />
-            Үйлчилгээ ({allServices.filter(s => s.type === "SERVICE").length})
+            Эмчилгээ ({allServices.filter(s => s.type === "SERVICE").length})
           </TabsTrigger>
           <TabsTrigger value="PACKAGE" data-testid="tab-packages-only">
             <Package className="h-3.5 w-3.5 mr-1.5" />
@@ -161,7 +161,7 @@ export default function ServicesPage() {
         <div className="text-sm text-muted-foreground">Ачаалж байна...</div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground text-sm" data-testid="text-no-services">
-          Үйлчилгээ бүртгэгдээгүй байна
+          Эмчилгээ бүртгэгдээгүй байна
         </div>
       ) : (
         <div className="rounded-md border">
@@ -185,7 +185,7 @@ export default function ServicesPage() {
                   </TableCell>
                   <TableCell>
                     <Badge variant={service.type === "PACKAGE" ? "default" : "outline"}>
-                      {service.type === "SERVICE" ? "Үйлчилгээ" : "Багц"}
+                      {service.type === "SERVICE" ? "Эмчилгээ" : "Багц"}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right font-medium">
@@ -219,10 +219,10 @@ export default function ServicesPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle data-testid="text-service-dialog-title">
-              {editingService ? "Үйлчилгээ засах" : "Шинэ үйлчилгээ"}
+              {editingService ? "Эмчилгээ засах" : "Шинэ эмчилгээ"}
             </DialogTitle>
             <DialogDescription>
-              Эмчилгээ, үйлчилгээ эсвэл багцын мэдээлэл оруулна уу
+              Эмчилгээ эсвэл багцын мэдээлэл оруулна уу
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -280,7 +280,7 @@ export default function ServicesPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="SERVICE">Үйлчилгээ</SelectItem>
+                          <SelectItem value="SERVICE">Эмчилгээ</SelectItem>
                           <SelectItem value="PACKAGE">Багц</SelectItem>
                         </SelectContent>
                       </Select>
@@ -321,9 +321,9 @@ export default function ServicesPage() {
       <AlertDialog open={!!deleteId} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Үйлчилгээ устгах</AlertDialogTitle>
+            <AlertDialogTitle>Эмчилгээ устгах</AlertDialogTitle>
             <AlertDialogDescription>
-              Энэ үйлчилгээг устгахдаа итгэлтэй байна уу?
+              Энэ эмчилгээг устгахдаа итгэлтэй байна уу?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

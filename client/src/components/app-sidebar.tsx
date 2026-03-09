@@ -17,7 +17,7 @@ const mainItems = [
   { title: "Өрөөнүүд", url: "/room-grid", icon: Grid3X3 },
   { title: "Зочид", url: "/guests", icon: Users },
   { title: "Захиалга", url: "/bookings", icon: CalendarDays },
-  { title: "Үйлчилгээ", url: "/services", icon: Stethoscope },
+  { title: "Эмчилгээ", url: "/services", icon: Stethoscope },
   { title: "Төлбөр", url: "/billing", icon: CreditCard },
 ];
 
