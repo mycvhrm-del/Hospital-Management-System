@@ -77,6 +77,27 @@ export const transactions = pgTable("transactions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const serviceTypeEnum = pgEnum("service_type", ["SERVICE", "PACKAGE"]);
+
+export const services = pgTable("services", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  type: serviceTypeEnum("type").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const bookingServices = pgTable("booking_services", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  bookingId: varchar("booking_id").notNull(),
+  serviceId: varchar("service_id").notNull(),
+  quantity: integer("quantity").default(1).notNull(),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
+  totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
+});
+
 export const auditLogs = pgTable("audit_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: text("user_id").notNull(),
@@ -94,6 +115,8 @@ export const insertTreatmentPlanSchema = createInsertSchema(treatmentPlans).omit
 export const insertInventorySchema = createInsertSchema(inventory).omit({ id: true });
 export const insertMaterialUsageSchema = createInsertSchema(materialUsages).omit({ id: true });
 export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true, createdAt: true });
+export const insertServiceSchema = createInsertSchema(services).omit({ id: true, createdAt: true });
+export const insertBookingServiceSchema = createInsertSchema(bookingServices).omit({ id: true });
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, timestamp: true });
 
 export type RoomCategory = typeof roomCategories.$inferSelect;
@@ -112,5 +135,9 @@ export type MaterialUsage = typeof materialUsages.$inferSelect;
 export type InsertMaterialUsage = z.infer<typeof insertMaterialUsageSchema>;
 export type Transaction = typeof transactions.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
+export type Service = typeof services.$inferSelect;
+export type InsertService = z.infer<typeof insertServiceSchema>;
+export type BookingService = typeof bookingServices.$inferSelect;
+export type InsertBookingService = z.infer<typeof insertBookingServiceSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;

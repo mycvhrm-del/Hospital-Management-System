@@ -12,6 +12,8 @@ import GuestsPage from "@/pages/guests";
 import GuestDetailPage from "@/pages/guest-detail";
 import BillingPage from "@/pages/billing";
 import RoomGridPage from "@/pages/room-grid";
+import BookingsPage from "@/pages/bookings";
+import ServicesPage from "@/pages/services";
 
 function Router() {
   return (
@@ -21,6 +23,8 @@ function Router() {
       <Route path="/settings" component={SettingsPage} />
       <Route path="/guests/:id" component={GuestDetailPage} />
       <Route path="/guests" component={GuestsPage} />
+      <Route path="/bookings" component={BookingsPage} />
+      <Route path="/services" component={ServicesPage} />
       <Route path="/billing" component={BillingPage} />
       <Route component={NotFound} />
     </Switch>

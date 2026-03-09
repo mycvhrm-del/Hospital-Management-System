@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertRoomCategorySchema, insertRoomSchema, insertGuestSchema, insertBookingSchema, insertTransactionSchema } from "@shared/schema";
+import { insertRoomCategorySchema, insertRoomSchema, insertGuestSchema, insertBookingSchema, insertTransactionSchema, insertServiceSchema } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -189,7 +189,10 @@ export async function registerRoutes(
   });
 
   app.post("/api/bookings", async (req, res) => {
-    const parsed = insertBookingSchema.safeParse(req.body);
+    const { serviceIds, ...bookingData } = req.body;
+    if (bookingData.checkIn) bookingData.checkIn = new Date(bookingData.checkIn);
+    if (bookingData.checkOut) bookingData.checkOut = new Date(bookingData.checkOut);
+    const parsed = insertBookingSchema.safeParse(bookingData);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
 
     const checkIn = new Date(parsed.data.checkIn);
@@ -201,12 +204,45 @@ export async function registerRoutes(
     }
 
     try {
+      const room = await storage.getRoom(parsed.data.roomId);
+      const categories = await storage.getRoomCategories();
+      const category = room ? categories.find(c => c.id === room.categoryId) : null;
+      const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+      const roomTotal = category ? Number(category.basePrice) * nights : 0;
+
+      let servicesTotalAmount = 0;
+      const servicesToAdd: { id: string; price: string }[] = [];
+      if (serviceIds && Array.isArray(serviceIds) && serviceIds.length > 0) {
+        for (const svcId of serviceIds) {
+          const svc = await storage.getService(svcId);
+          if (svc) {
+            servicesToAdd.push({ id: svc.id, price: svc.price });
+            servicesTotalAmount += Number(svc.price);
+          }
+        }
+      }
+
+      const serverTotal = roomTotal + servicesTotalAmount;
+
       const booking = await storage.createBooking({
         ...parsed.data,
+        totalAmount: String(serverTotal),
         status: "PENDING",
         depositPaid: "0",
       });
       await storage.updateRoom(parsed.data.roomId, { status: "PENDING" });
+
+      for (const svc of servicesToAdd) {
+        await storage.addBookingService({
+          bookingId: booking.id,
+          serviceId: svc.id,
+          quantity: 1,
+          unitPrice: svc.price,
+          totalPrice: svc.price,
+        });
+      }
+
+      booking.totalAmount = String(serverTotal);
       res.status(201).json(booking);
     } catch (err: any) {
       throw err;
@@ -309,6 +345,64 @@ export async function registerRoutes(
       },
       generatedAt: new Date().toISOString(),
     });
+  });
+
+  app.get("/api/services", async (_req, res) => {
+    const allServices = await storage.getServices();
+    res.json(allServices);
+  });
+
+  app.get("/api/services/:id", async (req, res) => {
+    const service = await storage.getService(req.params.id);
+    if (!service) return res.status(404).json({ message: "Service not found" });
+    res.json(service);
+  });
+
+  app.post("/api/services", async (req, res) => {
+    const parsed = insertServiceSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const service = await storage.createService(parsed.data);
+    res.status(201).json(service);
+  });
+
+  app.patch("/api/services/:id", async (req, res) => {
+    const parsed = insertServiceSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const service = await storage.updateService(req.params.id, parsed.data);
+    if (!service) return res.status(404).json({ message: "Service not found" });
+    res.json(service);
+  });
+
+  app.delete("/api/services/:id", async (req, res) => {
+    const success = await storage.deleteService(req.params.id);
+    if (!success) return res.status(404).json({ message: "Service not found" });
+    res.json({ message: "Deleted" });
+  });
+
+  app.get("/api/bookings/:id/services", async (req, res) => {
+    const bs = await storage.getBookingServices(req.params.id);
+    res.json(bs);
+  });
+
+  app.post("/api/booking-services", async (req, res) => {
+    const { bookingId, serviceId, quantity } = req.body;
+    if (!bookingId || !serviceId) return res.status(400).json({ message: "bookingId and serviceId required" });
+    const service = await storage.getService(serviceId);
+    if (!service) return res.status(404).json({ message: "Service not found" });
+
+    const qty = quantity || 1;
+    const unitPrice = service.price;
+    const totalPrice = String(Number(unitPrice) * qty);
+
+    const bs = await storage.addBookingService({
+      bookingId,
+      serviceId,
+      quantity: qty,
+      unitPrice,
+      totalPrice,
+    });
+
+    res.status(201).json(bs);
   });
 
   return httpServer;

@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/node-postgres";
-import { roomCategories, rooms, guests, bookings } from "@shared/schema";
+import { roomCategories, rooms, guests, bookings, services } from "@shared/schema";
 
 const db = drizzle(process.env.DATABASE_URL!);
 
@@ -159,6 +159,21 @@ export async function seedDatabase() {
 
       console.log("Bookings seeded");
     }
+  }
+
+  const existingServices = await db.select().from(services);
+  if (existingServices.length === 0) {
+    await db.insert(services).values([
+      { name: "Нурууны эмчилгээ", description: "Нурууны мэдрэлийн эмчилгээ, массаж", price: "85000", type: "SERVICE" as const },
+      { name: "Бүх биеийн массаж", description: "60 минутын бүх биеийн массаж", price: "65000", type: "SERVICE" as const },
+      { name: "Халуун рашаан", description: "Халуун рашаан усанд орох үйлчилгээ", price: "45000", type: "SERVICE" as const },
+      { name: "Шавар эмчилгээ", description: "Шавар эмчилгээ, арьс арчилгаа", price: "55000", type: "SERVICE" as const },
+      { name: "Зүү эмчилгээ", description: "Уламжлалт зүү эмчилгээ", price: "75000", type: "SERVICE" as const },
+      { name: "7 хоногийн багц", description: "Массаж + Халуун рашаан + Шавар эмчилгээ (7 хоног)", price: "350000", type: "PACKAGE" as const },
+      { name: "14 хоногийн багц", description: "Бүх үйлчилгээ + Зүү эмчилгээ (14 хоног)", price: "650000", type: "PACKAGE" as const },
+      { name: "VIP багц", description: "Бүх эмчилгээ + VIP өрөө + Хоол (14 хоног)", price: "1200000", type: "PACKAGE" as const },
+    ]);
+    console.log("Services seeded");
   }
 
   console.log("Database seed complete");

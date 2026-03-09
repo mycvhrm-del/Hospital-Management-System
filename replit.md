@@ -19,6 +19,8 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - Room - Individual rooms with status tracking (FK to RoomCategory with cascade delete)
 - Guest - Guest registration with unique idNumber, medical history (JSON), VIP flag, family linking via parentId
 - Booking - Room reservations
+- Service - Services and packages (type: SERVICE|PACKAGE) with name, description, price, isActive
+- BookingService - Junction table linking bookings to services (quantity, unitPrice, totalPrice)
 - TreatmentPlan - Medical treatment scheduling
 - Inventory - Medical supply tracking
 - MaterialUsage - Treatment material consumption
@@ -30,6 +32,8 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - `/room-grid` - Interactive Room Grid Dashboard (color-coded cards, floor tabs, quick booking, check-out)
 - `/guests` - Guest list with CRUD, search, family member linking
 - `/guests/:id` - Guest detail with medical history viewer, family members, bookings
+- `/bookings` - Bookings list with search, status filter, create booking dialog with service selection
+- `/services` - Services/Packages CRUD (tabs: All/Service/Package) with create/edit/delete
 - `/billing` - Family billing overview (aggregated by family groups)
 - `/settings` - Room Categories and Rooms CRUD (Tabs layout)
 
@@ -45,6 +49,10 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - `PATCH /api/bookings/:id/status` - Update booking status (manages room status transitions)
 - `GET /api/bookings/:id/transactions` - Booking transactions
 - `POST /api/transactions` - Create payment (DEPOSIT auto-confirms booking)
+- `GET/POST/PATCH/DELETE /api/services` - Service/Package CRUD
+- `GET /api/bookings/:id/services` - Services for a booking
+- `POST /api/booking-services` - Add service to a booking
+- `POST /api/bookings` - Create booking (accepts optional serviceIds[], server-authoritative pricing)
 - `GET /api/room-grid` - Enriched room data with active bookings and guest info
 - `GET /api/family-bill/:parentId` - Family bill with all bookings, transactions, totals
 
@@ -65,7 +73,12 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - 4 room categories, 9 rooms
 - 5 guests (1 family group with parent + 2 children, 2 solo guests)
 - 3 bookings (2 CHECKED_IN on rooms 102/302, 1 PENDING on room 402)
+- 8 services (5 SERVICE type, 3 PACKAGE type) in Mongolian
 - Guests include medical history JSON data
+
+## Key Design Decisions
+- Server-authoritative pricing: POST /api/bookings calculates totalAmount server-side from room basePrice × nights + selected service prices (ignores client totalAmount)
+- Service type enum: SERVICE | PACKAGE
 
 ## Running
 `npm run dev` starts both Express backend and Vite frontend dev server.

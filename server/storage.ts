@@ -1,12 +1,14 @@
 import { eq, inArray, and, or, ne, lt, gt, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import {
-  roomCategories, rooms, guests, bookings, transactions,
+  roomCategories, rooms, guests, bookings, transactions, services, bookingServices,
   type RoomCategory, type InsertRoomCategory,
   type Room, type InsertRoom,
   type Guest, type InsertGuest,
   type Booking,
   type Transaction,
+  type Service, type InsertService,
+  type BookingService, type InsertBookingService,
 } from "@shared/schema";
 
 const db = drizzle(process.env.DATABASE_URL!);
@@ -41,6 +43,16 @@ export interface IStorage {
   updateBookingStatus(id: string, status: string): Promise<Booking | undefined>;
   createTransaction(data: any): Promise<Transaction>;
   getTransactionsByBookingIds(bookingIds: string[]): Promise<Transaction[]>;
+
+  getServices(): Promise<Service[]>;
+  getService(id: string): Promise<Service | undefined>;
+  createService(data: InsertService): Promise<Service>;
+  updateService(id: string, data: Partial<InsertService>): Promise<Service | undefined>;
+  deleteService(id: string): Promise<boolean>;
+
+  getBookingServices(bookingId: string): Promise<BookingService[]>;
+  addBookingService(data: InsertBookingService): Promise<BookingService>;
+  deleteBookingService(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -193,6 +205,44 @@ export class DatabaseStorage implements IStorage {
   async getTransactionsByBookingIds(bookingIds: string[]): Promise<Transaction[]> {
     if (bookingIds.length === 0) return [];
     return db.select().from(transactions).where(inArray(transactions.bookingId, bookingIds));
+  }
+
+  async getServices(): Promise<Service[]> {
+    return db.select().from(services);
+  }
+
+  async getService(id: string): Promise<Service | undefined> {
+    const [service] = await db.select().from(services).where(eq(services.id, id));
+    return service;
+  }
+
+  async createService(data: InsertService): Promise<Service> {
+    const [service] = await db.insert(services).values(data).returning();
+    return service;
+  }
+
+  async updateService(id: string, data: Partial<InsertService>): Promise<Service | undefined> {
+    const [service] = await db.update(services).set(data).where(eq(services.id, id)).returning();
+    return service;
+  }
+
+  async deleteService(id: string): Promise<boolean> {
+    const result = await db.delete(services).where(eq(services.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getBookingServices(bookingId: string): Promise<BookingService[]> {
+    return db.select().from(bookingServices).where(eq(bookingServices.bookingId, bookingId));
+  }
+
+  async addBookingService(data: InsertBookingService): Promise<BookingService> {
+    const [bs] = await db.insert(bookingServices).values(data).returning();
+    return bs;
+  }
+
+  async deleteBookingService(id: string): Promise<boolean> {
+    const result = await db.delete(bookingServices).where(eq(bookingServices.id, id)).returning();
+    return result.length > 0;
   }
 }
 

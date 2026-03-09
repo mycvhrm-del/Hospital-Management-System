@@ -1,5 +1,5 @@
 import { useLocation, Link } from "wouter";
-import { LayoutDashboard, Settings, BedDouble, Users, CreditCard, Grid3X3 } from "lucide-react";
+import { LayoutDashboard, Settings, BedDouble, Users, CreditCard, Grid3X3, CalendarDays, Stethoscope } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -16,6 +16,8 @@ const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Өрөөнүүд", url: "/room-grid", icon: Grid3X3 },
   { title: "Зочид", url: "/guests", icon: Users },
+  { title: "Захиалга", url: "/bookings", icon: CalendarDays },
+  { title: "Үйлчилгээ", url: "/services", icon: Stethoscope },
   { title: "Төлбөр", url: "/billing", icon: CreditCard },
 ];
 
