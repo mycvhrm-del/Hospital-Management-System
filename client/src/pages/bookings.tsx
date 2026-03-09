@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CalendarDays, Search } from "lucide-react";
+import { Plus, CalendarDays, Search, UserPlus, X, Check } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Booking, Guest, Room, RoomCategory, Service } from "@shared/schema";
@@ -52,18 +52,31 @@ const statusColors: Record<string, string> = {
   CANCELLED: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
 };
 
+const newGuestSchema = z.object({
+  idNumber: z.string().min(1, "Регистрийн дугаар оруулна уу"),
+  firstName: z.string().min(1, "Нэр оруулна уу"),
+  lastName: z.string().min(1, "Овог оруулна уу"),
+  phone: z.string().min(1, "Утасны дугаар оруулна уу"),
+  isVip: z.boolean().default(false),
+});
+
+type NewGuestFormValues = z.infer<typeof newGuestSchema>;
+
 export default function BookingsPage() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [guestSearch, setGuestSearch] = useState("");
+  const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
+  const [showNewGuestForm, setShowNewGuestForm] = useState(false);
 
   const { data: allBookings = [], isLoading } = useQuery<Booking[]>({
     queryKey: ["/api/bookings"],
   });
 
-  const { data: allGuests = [] } = useQuery<Guest[]>({
+  const { data: allGuests = [], isLoading: guestsLoading } = useQuery<Guest[]>({
     queryKey: ["/api/guests"],
   });
 
@@ -84,6 +97,35 @@ export default function BookingsPage() {
   const catMap = Object.fromEntries(allCategories.map(c => [c.id, c]));
   const availableRooms = allRooms.filter(r => r.status === "AVAILABLE");
   const activeServices = allServices.filter(s => s.isActive);
+
+  const guestSearchResults = guestSearch.length >= 2
+    ? allGuests.filter(g => {
+        const q = guestSearch.toLowerCase();
+        return g.phone.includes(q) || g.idNumber.toLowerCase().includes(q);
+      })
+    : [];
+
+  const newGuestForm = useForm<NewGuestFormValues>({
+    resolver: zodResolver(newGuestSchema),
+    defaultValues: { idNumber: "", firstName: "", lastName: "", phone: "", isVip: false },
+  });
+
+  const createGuestMutation = useMutation({
+    mutationFn: (data: NewGuestFormValues) => apiRequest("POST", "/api/guests", data),
+    onSuccess: async (res: any) => {
+      const created = await res.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      setSelectedGuest(created);
+      form.setValue("guestId", created.id);
+      setShowNewGuestForm(false);
+      setGuestSearch("");
+      newGuestForm.reset();
+      toast({ title: "Амжилттай", description: "Зочин бүртгэгдлээ" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
 
   const form = useForm<BookingFormValues>({
     resolver: zodResolver(bookingFormSchema),
@@ -110,6 +152,10 @@ export default function BookingsPage() {
 
   const openCreate = () => {
     setSelectedServices([]);
+    setSelectedGuest(null);
+    setGuestSearch("");
+    setShowNewGuestForm(false);
+    newGuestForm.reset();
     form.reset({ guestId: "", roomId: "", checkIn: "", checkOut: "", totalAmount: "0" });
     setDialogOpen(true);
   };
@@ -275,31 +321,194 @@ export default function BookingsPage() {
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="guestId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Зочин</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-booking-guest">
-                            <SelectValue placeholder="Зочин сонгох" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {allGuests.map((g) => (
-                            <SelectItem key={g.id} value={g.id}>
-                              {g.lastName} {g.firstName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <div className="space-y-3">
+                <FormLabel>Зочин</FormLabel>
+                {selectedGuest ? (
+                  <div className="flex items-center gap-3 rounded-md border p-3 bg-muted/30">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium" data-testid="text-selected-guest-name">
+                        {selectedGuest.lastName} {selectedGuest.firstName}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedGuest.idNumber} · {selectedGuest.phone}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => {
+                        setSelectedGuest(null);
+                        form.setValue("guestId", "");
+                        setGuestSearch("");
+                      }}
+                      data-testid="button-clear-guest"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : showNewGuestForm ? (
+                  <div className="rounded-md border p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">Шинэ зочин бүртгэх</p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setShowNewGuestForm(false)}
+                        data-testid="button-cancel-new-guest"
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Цуцлах
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground">Овог</label>
+                        <Input
+                          placeholder="Бат"
+                          {...newGuestForm.register("lastName")}
+                          data-testid="input-new-guest-lastname"
+                        />
+                        {newGuestForm.formState.errors.lastName && (
+                          <p className="text-xs text-destructive mt-1">{newGuestForm.formState.errors.lastName.message}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground">Нэр</label>
+                        <Input
+                          placeholder="Болд"
+                          {...newGuestForm.register("firstName")}
+                          data-testid="input-new-guest-firstname"
+                        />
+                        {newGuestForm.formState.errors.firstName && (
+                          <p className="text-xs text-destructive mt-1">{newGuestForm.formState.errors.firstName.message}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">Регистрийн дугаар</label>
+                      <Input
+                        placeholder="АА00112233"
+                        {...newGuestForm.register("idNumber")}
+                        data-testid="input-new-guest-idnumber"
+                      />
+                      {newGuestForm.formState.errors.idNumber && (
+                        <p className="text-xs text-destructive mt-1">{newGuestForm.formState.errors.idNumber.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">Утасны дугаар</label>
+                      <Input
+                        placeholder="99112233"
+                        {...newGuestForm.register("phone")}
+                        data-testid="input-new-guest-phone"
+                      />
+                      {newGuestForm.formState.errors.phone && (
+                        <p className="text-xs text-destructive mt-1">{newGuestForm.formState.errors.phone.message}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={newGuestForm.watch("isVip")}
+                        onCheckedChange={(v) => newGuestForm.setValue("isVip", !!v)}
+                        data-testid="checkbox-new-guest-vip"
+                      />
+                      <label className="text-sm">VIP зочин</label>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="w-full"
+                      disabled={createGuestMutation.isPending}
+                      onClick={newGuestForm.handleSubmit((vals) => createGuestMutation.mutate(vals))}
+                      data-testid="button-save-new-guest"
+                    >
+                      {createGuestMutation.isPending ? "Бүртгэж байна..." : "Зочин бүртгэх"}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Утас эсвэл регистрийн дугаараар хайх..."
+                        value={guestSearch}
+                        onChange={(e) => setGuestSearch(e.target.value)}
+                        className="pl-10"
+                        data-testid="input-guest-search"
+                      />
+                    </div>
+                    {guestSearch.length >= 2 && (
+                      <div className="rounded-md border max-h-[160px] overflow-auto">
+                        {guestsLoading ? (
+                          <div className="p-3 text-center text-sm text-muted-foreground">Ачаалж байна...</div>
+                        ) : guestSearchResults.length > 0 ? (
+                          guestSearchResults.map((g) => (
+                            <button
+                              key={g.id}
+                              type="button"
+                              className="w-full flex items-center gap-3 p-2.5 text-left border-b last:border-b-0 transition-colors"
+                              onClick={() => {
+                                setSelectedGuest(g);
+                                form.setValue("guestId", g.id);
+                                setGuestSearch("");
+                              }}
+                              data-testid={`button-select-guest-${g.id}`}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium">{g.lastName} {g.firstName}</p>
+                                <p className="text-xs text-muted-foreground">{g.idNumber} · {g.phone}</p>
+                              </div>
+                              <Check className="h-4 w-4 text-muted-foreground shrink-0" />
+                            </button>
+                          ))
+                        ) : (
+                          <div className="p-3 text-center">
+                            <p className="text-sm text-muted-foreground mb-2">Зочин олдсонгүй</p>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setShowNewGuestForm(true);
+                                newGuestForm.reset({ idNumber: "", firstName: "", lastName: "", phone: guestSearch.match(/^\d+$/) ? guestSearch : "", isVip: false });
+                              }}
+                              data-testid="button-create-new-guest"
+                            >
+                              <UserPlus className="h-4 w-4 mr-1" />
+                              Шинэ зочин бүртгэх
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {guestSearch.length < 2 && (
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-muted-foreground flex-1">Утас эсвэл регистрийн дугаар оруулна уу (2+ тэмдэгт)</p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setShowNewGuestForm(true);
+                            newGuestForm.reset();
+                          }}
+                          data-testid="button-create-new-guest-direct"
+                        >
+                          <UserPlus className="h-4 w-4 mr-1" />
+                          Шинээр бүртгэх
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {form.formState.errors.guestId && !selectedGuest && (
+                  <p className="text-xs text-destructive">{form.formState.errors.guestId.message}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
                 <FormField
                   control={form.control}
                   name="roomId"
