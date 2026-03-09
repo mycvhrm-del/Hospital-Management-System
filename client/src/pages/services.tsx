@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -55,6 +55,7 @@ export default function ServicesPage() {
   const [materialsServiceId, setMaterialsServiceId] = useState<string | null>(null);
   const [pendingMaterials, setPendingMaterials] = useState<PendingMaterial[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
+  const [dialogMaterials, setDialogMaterials] = useState<PendingMaterial[]>([]);
 
   const { data: allServices = [], isLoading } = useQuery<Service[]>({
     queryKey: ["/api/services"],
@@ -67,6 +68,12 @@ export default function ServicesPage() {
   const { data: serviceMaterials = [], isLoading: materialsLoading } = useQuery<ServiceMaterial[]>({
     queryKey: ["/api/services", materialsServiceId, "materials"],
     enabled: !!materialsServiceId,
+  });
+
+  const editingServiceId = editingService?.id;
+  const { data: editingServiceMaterials = [] } = useQuery<ServiceMaterial[]>({
+    queryKey: ["/api/services", editingServiceId, "materials"],
+    enabled: !!editingServiceId && dialogOpen,
   });
 
   const materialsService = allServices.find(s => s.id === materialsServiceId);
@@ -86,6 +93,7 @@ export default function ServicesPage() {
   const openCreate = () => {
     setEditingService(null);
     form.reset({ name: "", description: "", price: "", type: "SERVICE", isActive: true });
+    setDialogMaterials([]);
     setDialogOpen(true);
   };
 
@@ -98,11 +106,20 @@ export default function ServicesPage() {
       type: service.type,
       isActive: service.isActive,
     });
+    setDialogMaterials([]);
     setDialogOpen(true);
   };
 
   const createMutation = useMutation({
-    mutationFn: (data: ServiceFormValues) => apiRequest("POST", "/api/services", data),
+    mutationFn: async (data: ServiceFormValues) => {
+      const res = await apiRequest("POST", "/api/services", data);
+      const newService = await res.json();
+      const validMats = dialogMaterials.filter(m => m.inventoryId && Number(m.quantityNeeded) > 0);
+      if (validMats.length > 0) {
+        await apiRequest("POST", `/api/services/${newService.id}/materials`, { materials: validMats });
+      }
+      return newService;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
       setDialogOpen(false);
@@ -114,10 +131,16 @@ export default function ServicesPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: ServiceFormValues) =>
-      apiRequest("PATCH", `/api/services/${editingService!.id}`, data),
+    mutationFn: async (data: ServiceFormValues) => {
+      await apiRequest("PATCH", `/api/services/${editingService!.id}`, data);
+      const validMats = dialogMaterials.filter(m => m.inventoryId && Number(m.quantityNeeded) > 0);
+      await apiRequest("POST", `/api/services/${editingService!.id}/materials`, { materials: validMats });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      if (editingService) {
+        queryClient.invalidateQueries({ queryKey: ["/api/services", editingService.id, "materials"] });
+      }
       setDialogOpen(false);
       toast({ title: "Амжилттай", description: "Эмчилгээ шинэчлэгдлээ" });
     },
@@ -191,6 +214,33 @@ export default function ServicesPage() {
       return;
     }
     saveMaterialsMutation.mutate(valid);
+  };
+
+  useEffect(() => {
+    if (editingService && dialogOpen && editingServiceMaterials.length > 0) {
+      setDialogMaterials(editingServiceMaterials.map(m => ({
+        inventoryId: m.inventoryId,
+        quantityNeeded: m.quantityNeeded,
+      })));
+    }
+  }, [editingService, dialogOpen, editingServiceMaterials]);
+
+  const dialogUsedIds = new Set(dialogMaterials.map(m => m.inventoryId));
+
+  const handleDialogAddRow = () => {
+    setDialogMaterials([...dialogMaterials, { inventoryId: "", quantityNeeded: "" }]);
+  };
+
+  const handleDialogUpdateRow = (index: number, field: "inventoryId" | "quantityNeeded", value: string) => {
+    const mats = [...dialogMaterials];
+    mats[index] = { ...mats[index], [field]: value };
+    setDialogMaterials(mats);
+  };
+
+  const handleDialogRemoveRow = (index: number) => {
+    const mats = [...dialogMaterials];
+    mats.splice(index, 1);
+    setDialogMaterials(mats);
   };
 
   const onSubmit = (values: ServiceFormValues) => {
@@ -301,7 +351,7 @@ export default function ServicesPage() {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) setDialogOpen(false); }}>
-        <DialogContent>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle data-testid="text-service-dialog-title">
               {editingService ? "Эмчилгээ засах" : "Шинэ эмчилгээ"}
@@ -387,6 +437,67 @@ export default function ServicesPage() {
                   </FormItem>
                 )}
               />
+
+              <div className="space-y-3 rounded-md border p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">Бараа материал</p>
+                  <Button type="button" variant="outline" size="sm" onClick={handleDialogAddRow}
+                    data-testid="button-dialog-add-material">
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Нэмэх
+                  </Button>
+                </div>
+                {dialogMaterials.length === 0 ? (
+                  <p className="text-xs text-muted-foreground" data-testid="text-dialog-no-materials">
+                    Бараа материал нэмэгдээгүй байна
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {dialogMaterials.map((mat, index) => {
+                      const otherUsed = new Set(dialogMaterials.filter((_, i) => i !== index).map(m => m.inventoryId));
+                      const rowAvailable = inventoryItems.filter(i => !otherUsed.has(i.id));
+                      return (
+                        <div key={index} className="grid grid-cols-[1fr_100px_32px] gap-2 items-center"
+                          data-testid={`dialog-row-material-${index}`}>
+                          <Select value={mat.inventoryId} onValueChange={(v) => handleDialogUpdateRow(index, "inventoryId", v)}>
+                            <SelectTrigger className="h-9 text-sm" data-testid={`dialog-select-material-${index}`}>
+                              <SelectValue placeholder="Бараа сонгох" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {mat.inventoryId && inventoryMap[mat.inventoryId] && (
+                                <SelectItem value={mat.inventoryId}>
+                                  {inventoryMap[mat.inventoryId].itemName} ({inventoryMap[mat.inventoryId].unit})
+                                </SelectItem>
+                              )}
+                              {rowAvailable.filter(i => i.id !== mat.inventoryId).map(inv => (
+                                <SelectItem key={inv.id} value={inv.id}>
+                                  {inv.itemName} ({inv.unit})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="number"
+                            placeholder="Тоо"
+                            className="h-9 text-sm"
+                            value={mat.quantityNeeded}
+                            onChange={(e) => handleDialogUpdateRow(index, "quantityNeeded", e.target.value)}
+                            min="0.01"
+                            step="0.01"
+                            data-testid={`dialog-input-material-qty-${index}`}
+                          />
+                          <Button type="button" size="icon" variant="ghost" className="h-8 w-8"
+                            onClick={() => handleDialogRemoveRow(index)}
+                            data-testid={`dialog-btn-remove-material-${index}`}>
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}
                   data-testid="button-cancel-service">
