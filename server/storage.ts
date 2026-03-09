@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import {
   roomCategories, rooms, guests, bookings, transactions,
@@ -34,6 +34,9 @@ export interface IStorage {
   getFamilyBookings(parentId: string): Promise<Booking[]>;
   getAllBookings(): Promise<Booking[]>;
   getBookingTransactions(bookingId: string): Promise<Transaction[]>;
+  getActiveBookingForRoom(roomId: string): Promise<Booking | undefined>;
+  createBooking(data: any): Promise<Booking>;
+  updateBookingStatus(id: string, status: string): Promise<Booking | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -129,6 +132,30 @@ export class DatabaseStorage implements IStorage {
 
   async getBookingTransactions(bookingId: string): Promise<Transaction[]> {
     return db.select().from(transactions).where(eq(transactions.bookingId, bookingId));
+  }
+
+  async getActiveBookingForRoom(roomId: string): Promise<Booking | undefined> {
+    const [booking] = await db.select().from(bookings).where(
+      and(
+        eq(bookings.roomId, roomId),
+        or(
+          eq(bookings.status, "CONFIRMED"),
+          eq(bookings.status, "CHECKED_IN"),
+          eq(bookings.status, "PENDING")
+        )
+      )
+    );
+    return booking;
+  }
+
+  async createBooking(data: any): Promise<Booking> {
+    const [booking] = await db.insert(bookings).values(data).returning();
+    return booking;
+  }
+
+  async updateBookingStatus(id: string, status: string): Promise<Booking | undefined> {
+    const [booking] = await db.update(bookings).set({ status: status as any }).where(eq(bookings.id, id)).returning();
+    return booking;
   }
 }
 

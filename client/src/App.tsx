@@ -11,11 +11,13 @@ import SettingsPage from "@/pages/settings";
 import GuestsPage from "@/pages/guests";
 import GuestDetailPage from "@/pages/guest-detail";
 import BillingPage from "@/pages/billing";
+import RoomGridPage from "@/pages/room-grid";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/room-grid" component={RoomGridPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/guests" component={GuestsPage} />
       <Route path="/guests/:id" component={GuestDetailPage} />

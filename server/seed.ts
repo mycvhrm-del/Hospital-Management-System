@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/node-postgres";
-import { roomCategories, rooms, guests } from "@shared/schema";
+import { roomCategories, rooms, guests, bookings } from "@shared/schema";
 
 const db = drizzle(process.env.DATABASE_URL!);
 
@@ -107,6 +107,58 @@ export async function seedDatabase() {
     ]);
 
     console.log("Guests seeded");
+  }
+
+  const existingBookings = await db.select().from(bookings);
+  if (existingBookings.length === 0) {
+    const allRooms = await db.select().from(rooms);
+    const allGuests = await db.select().from(guests);
+
+    const room102 = allRooms.find(r => r.roomNumber === "102");
+    const room302 = allRooms.find(r => r.roomNumber === "302");
+    const room402 = allRooms.find(r => r.roomNumber === "402");
+
+    const guestBat = allGuests.find(g => g.idNumber === "УБ90112233");
+    const guestOyun = allGuests.find(g => g.idNumber === "ХН78091100");
+    const guestMonkhbat = allGuests.find(g => g.idNumber === "ДА85042211");
+
+    if (room102 && room302 && room402 && guestBat && guestOyun && guestMonkhbat) {
+      const now = new Date();
+      const weekLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const twoWeeksLater = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+      await db.insert(bookings).values([
+        {
+          guestId: guestBat.id,
+          roomId: room102.id,
+          checkIn: now,
+          checkOut: weekLater,
+          status: "CHECKED_IN" as const,
+          totalAmount: "560000",
+          depositPaid: "200000",
+        },
+        {
+          guestId: guestOyun.id,
+          roomId: room302.id,
+          checkIn: now,
+          checkOut: twoWeeksLater,
+          status: "CHECKED_IN" as const,
+          totalAmount: "3500000",
+          depositPaid: "1000000",
+        },
+        {
+          guestId: guestMonkhbat.id,
+          roomId: room402.id,
+          checkIn: weekLater,
+          checkOut: twoWeeksLater,
+          status: "PENDING" as const,
+          totalAmount: "1400000",
+          depositPaid: "0",
+        },
+      ]);
+
+      console.log("Bookings seeded");
+    }
   }
 
   console.log("Database seed complete");

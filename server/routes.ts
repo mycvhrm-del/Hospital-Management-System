@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertRoomCategorySchema, insertRoomSchema, insertGuestSchema } from "@shared/schema";
+import { insertRoomCategorySchema, insertRoomSchema, insertGuestSchema, insertBookingSchema } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -155,6 +155,67 @@ export async function registerRoutes(
   app.get("/api/bookings/:id/transactions", async (req, res) => {
     const txns = await storage.getBookingTransactions(req.params.id);
     res.json(txns);
+  });
+
+  app.get("/api/room-grid", async (_req, res) => {
+    const allRooms = await storage.getRooms();
+    const categories = await storage.getRoomCategories();
+    const allGuests = await storage.getGuests();
+    const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
+    const guestMap = Object.fromEntries(allGuests.map(g => [g.id, g]));
+
+    const enriched = await Promise.all(allRooms.map(async (room) => {
+      const activeBooking = await storage.getActiveBookingForRoom(room.id);
+      let guest = null;
+      if (activeBooking) {
+        guest = guestMap[activeBooking.guestId] || null;
+      }
+      return {
+        ...room,
+        category: catMap[room.categoryId] || null,
+        activeBooking: activeBooking || null,
+        guest: guest ? {
+          id: guest.id,
+          firstName: guest.firstName,
+          lastName: guest.lastName,
+          phone: guest.phone,
+          isVip: guest.isVip,
+          hasMedicalHistory: !!guest.medicalHistory,
+        } : null,
+      };
+    }));
+
+    res.json(enriched);
+  });
+
+  app.post("/api/bookings", async (req, res) => {
+    const parsed = insertBookingSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const existing = await storage.getActiveBookingForRoom(parsed.data.roomId);
+    if (existing) return res.status(409).json({ message: "Энэ өрөөнд идэвхтэй захиалга байна" });
+    try {
+      const booking = await storage.createBooking(parsed.data);
+      await storage.updateRoom(parsed.data.roomId, { status: "OCCUPIED" });
+      res.status(201).json(booking);
+    } catch (err: any) {
+      throw err;
+    }
+  });
+
+  const validBookingStatuses = ["PENDING", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELLED"];
+
+  app.patch("/api/bookings/:id/status", async (req, res) => {
+    const { status } = req.body;
+    if (!status || !validBookingStatuses.includes(status)) {
+      return res.status(400).json({ message: "Буруу төлөв" });
+    }
+    const booking = await storage.updateBookingStatus(req.params.id, status);
+    if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+    if (status === "CHECKED_OUT" || status === "CANCELLED") {
+      await storage.updateRoom(booking.roomId, { status: "CLEANING" });
+    }
+    res.json(booking);
   });
 
   return httpServer;
