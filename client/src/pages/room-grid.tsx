@@ -33,6 +33,7 @@ import { Separator } from "@/components/ui/separator";
 interface RoomGridItem {
   id: string;
   roomNumber: string;
+  floor: number;
   categoryId: string;
   status: "AVAILABLE" | "OCCUPIED" | "PENDING" | "CLEANING";
   category: RoomCategory | null;
@@ -309,12 +310,12 @@ export default function RoomGridPage() {
   });
 
   const floors = Array.from(
-    new Set(roomGrid.map((r) => r.roomNumber.charAt(0)))
-  ).sort();
+    new Set(roomGrid.map((r) => r.floor))
+  ).sort((a, b) => a - b);
 
   const filteredRooms = selectedFloor === "all"
     ? roomGrid
-    : roomGrid.filter((r) => r.roomNumber.charAt(0) === selectedFloor);
+    : roomGrid.filter((r) => String(r.floor) === selectedFloor);
 
   const sortedRooms = [...filteredRooms].sort((a, b) => a.roomNumber.localeCompare(b.roomNumber));
 
@@ -403,8 +404,8 @@ export default function RoomGridPage() {
           <Button
             key={floor}
             size="sm"
-            variant={selectedFloor === floor ? "default" : "outline"}
-            onClick={() => setSelectedFloor(floor)}
+            variant={selectedFloor === String(floor) ? "default" : "outline"}
+            onClick={() => setSelectedFloor(String(floor))}
             data-testid={`button-floor-${floor}`}
           >
             {floor}-р давхар
@@ -422,7 +423,7 @@ export default function RoomGridPage() {
         <div className="flex flex-col items-center justify-center py-16">
           <BedDouble className="h-12 w-12 text-muted-foreground mb-3" />
           <p className="text-sm text-muted-foreground" data-testid="text-no-rooms-grid">
-            {selectedFloor === "all" ? "Өрөө бүртгэгдээгүй байна" : `${selectedFloor}-р давхарт өрөө байхгүй`}
+            {selectedFloor === "all" ? "Өрөө бүртгэгдээгүй байна" : `${selectedFloor}-р давхарт өрөө бүртгэгдээгүй`}
           </p>
         </div>
       ) : (

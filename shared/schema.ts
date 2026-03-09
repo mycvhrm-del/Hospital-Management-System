@@ -16,6 +16,7 @@ export const roomCategories = pgTable("room_categories", {
 export const rooms = pgTable("rooms", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   roomNumber: text("room_number").notNull().unique(),
+  floor: integer("floor").notNull().default(1),
   categoryId: varchar("category_id").notNull().references(() => roomCategories.id, { onDelete: "cascade" }),
   status: roomStatusEnum("status").default("AVAILABLE").notNull(),
 });

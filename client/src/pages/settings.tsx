@@ -63,6 +63,7 @@ const categoryFormSchema = z.object({
 
 const roomFormSchema = z.object({
   roomNumber: z.string().min(1, "Өрөөний дугаар оруулна уу"),
+  floor: z.coerce.number().min(1, "Давхар сонгоно уу"),
   categoryId: z.string().min(1, "Ангилал сонгоно уу"),
   status: z.enum(["AVAILABLE", "OCCUPIED", "PENDING", "CLEANING"]),
 });
@@ -362,7 +363,7 @@ function RoomSection() {
 
   const form = useForm<RoomFormValues>({
     resolver: zodResolver(roomFormSchema),
-    defaultValues: { roomNumber: "", categoryId: "", status: "AVAILABLE" },
+    defaultValues: { roomNumber: "", floor: 1, categoryId: "", status: "AVAILABLE" },
   });
 
   const createMutation = useMutation({
@@ -407,7 +408,7 @@ function RoomSection() {
 
   const openCreate = () => {
     setEditingRoom(null);
-    form.reset({ roomNumber: "", categoryId: "", status: "AVAILABLE" });
+    form.reset({ roomNumber: "", floor: 1, categoryId: "", status: "AVAILABLE" });
     setDialogOpen(true);
   };
 
@@ -415,6 +416,7 @@ function RoomSection() {
     setEditingRoom(room);
     form.reset({
       roomNumber: room.roomNumber,
+      floor: room.floor,
       categoryId: room.categoryId,
       status: room.status,
     });
@@ -479,6 +481,7 @@ function RoomSection() {
             <TableHeader>
               <TableRow>
                 <TableHead>Дугаар</TableHead>
+                <TableHead>Давхар</TableHead>
                 <TableHead>Ангилал</TableHead>
                 <TableHead>Төлөв</TableHead>
                 <TableHead className="w-24 text-right">Үйлдэл</TableHead>
@@ -489,6 +492,9 @@ function RoomSection() {
                 <TableRow key={room.id} data-testid={`row-room-${room.id}`}>
                   <TableCell className="font-medium" data-testid={`text-room-number-${room.id}`}>
                     {room.roomNumber}
+                  </TableCell>
+                  <TableCell data-testid={`text-room-floor-${room.id}`}>
+                    {room.floor}-р давхар
                   </TableCell>
                   <TableCell data-testid={`text-room-category-${room.id}`}>
                     {categoryMap[room.categoryId]?.name || "—"}
@@ -537,19 +543,45 @@ function RoomSection() {
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="roomNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Өрөөний дугаар</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Жишээ: 101" {...field} data-testid="input-room-number" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="roomNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Өрөөний дугаар</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Жишээ: 101" {...field} data-testid="input-room-number" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="floor"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Давхар</FormLabel>
+                      <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-room-floor">
+                            <SelectValue placeholder="Давхар сонгох" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((f) => (
+                            <SelectItem key={f} value={String(f)}>
+                              {f}-р давхар
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               <FormField
                 control={form.control}
                 name="categoryId"
