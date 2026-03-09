@@ -48,9 +48,12 @@ export const bookings = pgTable("bookings", {
 export const treatmentPlans = pgTable("treatment_plans", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   bookingId: varchar("booking_id").notNull(),
+  serviceId: varchar("service_id"),
   serviceName: text("service_name").notNull(),
   scheduleTime: timestamp("schedule_time").notNull(),
   status: text("status").notNull(),
+  notes: text("notes"),
+  completedAt: timestamp("completed_at"),
 });
 
 export const inventory = pgTable("inventory", {
@@ -59,6 +62,7 @@ export const inventory = pgTable("inventory", {
   stockQuantity: decimal("stock_quantity", { precision: 10, scale: 2 }).notNull(),
   unit: text("unit").notNull(),
   minStockLevel: decimal("min_stock_level", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const materialUsages = pgTable("material_usages", {
@@ -66,6 +70,23 @@ export const materialUsages = pgTable("material_usages", {
   treatmentId: varchar("treatment_id").notNull(),
   inventoryId: varchar("inventory_id").notNull(),
   quantityUsed: decimal("quantity_used", { precision: 10, scale: 2 }).notNull(),
+  usageDate: timestamp("usage_date").defaultNow().notNull(),
+});
+
+export const serviceMaterials = pgTable("service_materials", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  serviceId: varchar("service_id").notNull(),
+  inventoryId: varchar("inventory_id").notNull(),
+  quantityNeeded: decimal("quantity_needed", { precision: 10, scale: 2 }).notNull(),
+});
+
+export const inventoryPurchases = pgTable("inventory_purchases", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  inventoryId: varchar("inventory_id").notNull(),
+  quantity: decimal("quantity", { precision: 10, scale: 2 }).notNull(),
+  purchaseDate: timestamp("purchase_date").notNull(),
+  note: text("note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const transactions = pgTable("transactions", {
@@ -112,12 +133,14 @@ export const insertRoomSchema = createInsertSchema(rooms).omit({ id: true });
 export const insertGuestSchema = createInsertSchema(guests).omit({ id: true, createdAt: true });
 export const insertBookingSchema = createInsertSchema(bookings).omit({ id: true });
 export const insertTreatmentPlanSchema = createInsertSchema(treatmentPlans).omit({ id: true });
-export const insertInventorySchema = createInsertSchema(inventory).omit({ id: true });
+export const insertInventorySchema = createInsertSchema(inventory).omit({ id: true, createdAt: true });
 export const insertMaterialUsageSchema = createInsertSchema(materialUsages).omit({ id: true });
 export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true, createdAt: true });
 export const insertServiceSchema = createInsertSchema(services).omit({ id: true, createdAt: true });
 export const insertBookingServiceSchema = createInsertSchema(bookingServices).omit({ id: true });
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, timestamp: true });
+export const insertServiceMaterialSchema = createInsertSchema(serviceMaterials).omit({ id: true });
+export const insertInventoryPurchaseSchema = createInsertSchema(inventoryPurchases).omit({ id: true, createdAt: true });
 
 export type RoomCategory = typeof roomCategories.$inferSelect;
 export type InsertRoomCategory = z.infer<typeof insertRoomCategorySchema>;
@@ -141,3 +164,7 @@ export type BookingService = typeof bookingServices.$inferSelect;
 export type InsertBookingService = z.infer<typeof insertBookingServiceSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type ServiceMaterial = typeof serviceMaterials.$inferSelect;
+export type InsertServiceMaterial = z.infer<typeof insertServiceMaterialSchema>;
+export type InventoryPurchase = typeof inventoryPurchases.$inferSelect;
+export type InsertInventoryPurchase = z.infer<typeof insertInventoryPurchaseSchema>;

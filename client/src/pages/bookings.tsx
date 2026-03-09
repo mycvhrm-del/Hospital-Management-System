@@ -3,10 +3,11 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CalendarDays, Search, UserPlus, X, Check } from "lucide-react";
+import { Plus, CalendarDays, Search, UserPlus, X, Check, ClipboardList, Clock, CheckCircle2 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { Booking, Guest, Room, RoomCategory, Service } from "@shared/schema";
+import type { Booking, Guest, Room, RoomCategory, Service, TreatmentPlan } from "@shared/schema";
+import { Textarea } from "@/components/ui/textarea";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +63,19 @@ const newGuestSchema = z.object({
 
 type NewGuestFormValues = z.infer<typeof newGuestSchema>;
 
+const treatmentFormSchema = z.object({
+  serviceId: z.string().min(1, "Эмчилгээ сонгоно уу"),
+  scheduleTime: z.string().min(1, "Цаг сонгоно уу"),
+  notes: z.string().optional(),
+});
+
+type TreatmentFormValues = z.infer<typeof treatmentFormSchema>;
+
+const treatmentStatusLabels: Record<string, string> = {
+  SCHEDULED: "Төлөвлөсөн",
+  COMPLETED: "Дууссан",
+};
+
 export default function BookingsPage() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -71,6 +85,9 @@ export default function BookingsPage() {
   const [guestSearch, setGuestSearch] = useState("");
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [showNewGuestForm, setShowNewGuestForm] = useState(false);
+  const [treatmentDialogOpen, setTreatmentDialogOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [showAddTreatment, setShowAddTreatment] = useState(false);
 
   const { data: allBookings = [], isLoading } = useQuery<Booking[]>({
     queryKey: ["/api/bookings"],
@@ -91,6 +108,62 @@ export default function BookingsPage() {
   const { data: allServices = [] } = useQuery<Service[]>({
     queryKey: ["/api/services"],
   });
+
+  const { data: treatmentPlans = [], isLoading: treatmentsLoading } = useQuery<TreatmentPlan[]>({
+    queryKey: ["/api/bookings", selectedBooking?.id, "treatment-plans"],
+    enabled: !!selectedBooking,
+  });
+
+  const treatmentForm = useForm<TreatmentFormValues>({
+    resolver: zodResolver(treatmentFormSchema),
+    defaultValues: { serviceId: "", scheduleTime: "", notes: "" },
+  });
+
+  const createTreatmentMutation = useMutation({
+    mutationFn: (data: { bookingId: string; serviceId: string; serviceName: string; scheduleTime: string; notes?: string }) =>
+      apiRequest("POST", "/api/treatment-plans", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings", selectedBooking?.id, "treatment-plans"] });
+      treatmentForm.reset({ serviceId: "", scheduleTime: "", notes: "" });
+      setShowAddTreatment(false);
+      toast({ title: "Амжилттай", description: "Эмчилгээний төлөвлөгөө нэмэгдлээ" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const completeTreatmentMutation = useMutation({
+    mutationFn: (planId: string) =>
+      apiRequest("PATCH", `/api/treatment-plans/${planId}/complete`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings", selectedBooking?.id, "treatment-plans"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
+      toast({ title: "Амжилттай", description: "Эмчилгээ дууссан гэж тэмдэглэгдлээ" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const onSubmitTreatment = (values: TreatmentFormValues) => {
+    if (!selectedBooking) return;
+    const svc = allServices.find(s => s.id === values.serviceId);
+    createTreatmentMutation.mutate({
+      bookingId: selectedBooking.id,
+      serviceId: values.serviceId,
+      serviceName: svc?.name || "",
+      scheduleTime: new Date(values.scheduleTime).toISOString(),
+      notes: values.notes || undefined,
+    });
+  };
+
+  const openTreatmentDialog = (booking: Booking) => {
+    setSelectedBooking(booking);
+    setShowAddTreatment(false);
+    treatmentForm.reset({ serviceId: "", scheduleTime: "", notes: "" });
+    setTreatmentDialogOpen(true);
+  };
 
   const guestMap = Object.fromEntries(allGuests.map(g => [g.id, g]));
   const roomMap = Object.fromEntries(allRooms.map(r => [r.id, r]));
@@ -274,6 +347,7 @@ export default function BookingsPage() {
                 <TableHead className="text-right">Нийт дүн</TableHead>
                 <TableHead className="text-right">Төлсөн</TableHead>
                 <TableHead className="text-right">Үлдэгдэл</TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -305,6 +379,17 @@ export default function BookingsPage() {
                     <TableCell className={`text-right ${balance > 0 ? "text-destructive font-medium" : ""}`}>
                       {balance.toLocaleString()}₮
                     </TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => openTreatmentDialog(booking)}
+                        data-testid={`button-treatment-plans-${booking.id}`}
+                      >
+                        <ClipboardList className="h-4 w-4 mr-1" />
+                        Эмчилгээ
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -312,6 +397,176 @@ export default function BookingsPage() {
           </Table>
         </div>
       )}
+
+      <Dialog open={treatmentDialogOpen} onOpenChange={(open) => { if (!open) setTreatmentDialogOpen(false); }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle data-testid="text-treatment-dialog-title">
+              Эмчилгээний төлөвлөгөө
+            </DialogTitle>
+            <DialogDescription>
+              {selectedBooking && (() => {
+                const guest = guestMap[selectedBooking.guestId];
+                const room = roomMap[selectedBooking.roomId];
+                return `${guest ? `${guest.lastName} ${guest.firstName}` : "—"} · Өрөө ${room?.roomNumber || "—"}`;
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h3 className="text-sm font-semibold">
+                Төлөвлөгөөнүүд ({treatmentPlans.length})
+              </h3>
+              {!showAddTreatment && (
+                <Button
+                  size="sm"
+                  onClick={() => setShowAddTreatment(true)}
+                  data-testid="button-add-treatment"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Эмчилгээ нэмэх
+                </Button>
+              )}
+            </div>
+
+            {showAddTreatment && (
+              <Card>
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium">Шинэ эмчилгээ нэмэх</p>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setShowAddTreatment(false)}
+                      data-testid="button-cancel-add-treatment"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <form onSubmit={treatmentForm.handleSubmit(onSubmitTreatment)} className="space-y-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">Эмчилгээ</label>
+                      <Select
+                        value={treatmentForm.watch("serviceId")}
+                        onValueChange={(v) => treatmentForm.setValue("serviceId", v)}
+                      >
+                        <SelectTrigger data-testid="select-treatment-service">
+                          <SelectValue placeholder="Эмчилгээ сонгох" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {activeServices.map((svc) => (
+                            <SelectItem key={svc.id} value={svc.id}>
+                              {svc.name} ({Number(svc.price).toLocaleString()}₮)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {treatmentForm.formState.errors.serviceId && (
+                        <p className="text-xs text-destructive mt-1">{treatmentForm.formState.errors.serviceId.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">Товлосон цаг</label>
+                      <Input
+                        type="datetime-local"
+                        {...treatmentForm.register("scheduleTime")}
+                        data-testid="input-treatment-schedule"
+                      />
+                      {treatmentForm.formState.errors.scheduleTime && (
+                        <p className="text-xs text-destructive mt-1">{treatmentForm.formState.errors.scheduleTime.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">Тэмдэглэл</label>
+                      <Textarea
+                        placeholder="Нэмэлт тэмдэглэл..."
+                        {...treatmentForm.register("notes")}
+                        data-testid="input-treatment-notes"
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      className="w-full"
+                      disabled={createTreatmentMutation.isPending}
+                      data-testid="button-save-treatment"
+                    >
+                      {createTreatmentMutation.isPending ? "Нэмж байна..." : "Эмчилгээ нэмэх"}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+
+            {treatmentsLoading ? (
+              <div className="text-sm text-muted-foreground text-center py-4">Ачаалж байна...</div>
+            ) : treatmentPlans.length === 0 ? (
+              <div className="text-center py-6">
+                <ClipboardList className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground" data-testid="text-no-treatments">
+                  Эмчилгээний төлөвлөгөө байхгүй байна
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {treatmentPlans.map((plan) => (
+                  <Card key={plan.id} data-testid={`card-treatment-${plan.id}`}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium" data-testid={`text-treatment-name-${plan.id}`}>
+                              {plan.serviceName}
+                            </span>
+                            <Badge
+                              variant={plan.status === "COMPLETED" ? "default" : "outline"}
+                              data-testid={`badge-treatment-status-${plan.id}`}
+                            >
+                              {plan.status === "COMPLETED" ? (
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                              ) : (
+                                <Clock className="h-3 w-3 mr-1" />
+                              )}
+                              {treatmentStatusLabels[plan.status] || plan.status}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Товлосон: {new Date(plan.scheduleTime).toLocaleString("mn-MN")}
+                          </p>
+                          {plan.completedAt && (
+                            <p className="text-xs text-muted-foreground" data-testid={`text-treatment-completed-${plan.id}`}>
+                              Дууссан: {new Date(plan.completedAt).toLocaleString("mn-MN")}
+                            </p>
+                          )}
+                          {plan.notes && (
+                            <p className="text-xs text-muted-foreground mt-1" data-testid={`text-treatment-notes-${plan.id}`}>
+                              {plan.notes}
+                            </p>
+                          )}
+                        </div>
+                        {plan.status !== "COMPLETED" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => completeTreatmentMutation.mutate(plan.id)}
+                            disabled={completeTreatmentMutation.isPending}
+                            data-testid={`button-complete-treatment-${plan.id}`}
+                          >
+                            <CheckCircle2 className="h-4 w-4 mr-1" />
+                            Дуусгах
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) setDialogOpen(false); }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-auto">

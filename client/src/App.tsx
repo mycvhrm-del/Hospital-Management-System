@@ -14,6 +14,7 @@ import BillingPage from "@/pages/billing";
 import RoomGridPage from "@/pages/room-grid";
 import BookingsPage from "@/pages/bookings";
 import ServicesPage from "@/pages/services";
+import InventoryPage from "@/pages/inventory";
 
 function Router() {
   return (
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/bookings" component={BookingsPage} />
       <Route path="/services" component={ServicesPage} />
       <Route path="/billing" component={BillingPage} />
+      <Route path="/inventory" component={InventoryPage} />
       <Route component={NotFound} />
     </Switch>
   );

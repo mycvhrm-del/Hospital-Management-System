@@ -1,7 +1,9 @@
 import { eq, inArray, and, or, ne, lt, gt, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
 import {
   roomCategories, rooms, guests, bookings, transactions, services, bookingServices,
+  inventory, inventoryPurchases, serviceMaterials, treatmentPlans, materialUsages, auditLogs,
   type RoomCategory, type InsertRoomCategory,
   type Room, type InsertRoom,
   type Guest, type InsertGuest,
@@ -9,6 +11,12 @@ import {
   type Transaction,
   type Service, type InsertService,
   type BookingService, type InsertBookingService,
+  type Inventory, type InsertInventory,
+  type InventoryPurchase, type InsertInventoryPurchase,
+  type ServiceMaterial, type InsertServiceMaterial,
+  type TreatmentPlan, type InsertTreatmentPlan,
+  type MaterialUsage,
+  type AuditLog, type InsertAuditLog,
 } from "@shared/schema";
 
 const db = drizzle(process.env.DATABASE_URL!);
@@ -53,6 +61,28 @@ export interface IStorage {
   getBookingServices(bookingId: string): Promise<BookingService[]>;
   addBookingService(data: InsertBookingService): Promise<BookingService>;
   deleteBookingService(id: string): Promise<boolean>;
+
+  getInventoryItems(): Promise<Inventory[]>;
+  getInventoryItem(id: string): Promise<Inventory | undefined>;
+  createInventoryItem(data: InsertInventory): Promise<Inventory>;
+  updateInventoryItem(id: string, data: Partial<InsertInventory>): Promise<Inventory | undefined>;
+  deleteInventoryItem(id: string): Promise<boolean>;
+
+  getInventoryPurchases(inventoryId: string): Promise<InventoryPurchase[]>;
+  createInventoryPurchase(data: InsertInventoryPurchase): Promise<InventoryPurchase>;
+
+  getServiceMaterials(serviceId: string): Promise<ServiceMaterial[]>;
+  setServiceMaterials(serviceId: string, materials: { inventoryId: string; quantityNeeded: string }[]): Promise<ServiceMaterial[]>;
+
+  getTreatmentPlans(bookingId: string): Promise<TreatmentPlan[]>;
+  createTreatmentPlan(data: InsertTreatmentPlan): Promise<TreatmentPlan>;
+  completeTreatmentPlan(id: string, completedAt: Date): Promise<TreatmentPlan | undefined>;
+
+  createAuditLog(data: InsertAuditLog): Promise<AuditLog>;
+  getAuditLogs(): Promise<AuditLog[]>;
+
+  getTransaction(id: string): Promise<Transaction | undefined>;
+  deleteTransaction(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -242,6 +272,132 @@ export class DatabaseStorage implements IStorage {
 
   async deleteBookingService(id: string): Promise<boolean> {
     const result = await db.delete(bookingServices).where(eq(bookingServices.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getInventoryItems(): Promise<Inventory[]> {
+    return db.select().from(inventory);
+  }
+
+  async getInventoryItem(id: string): Promise<Inventory | undefined> {
+    const [item] = await db.select().from(inventory).where(eq(inventory.id, id));
+    return item;
+  }
+
+  async createInventoryItem(data: InsertInventory): Promise<Inventory> {
+    const [item] = await db.insert(inventory).values(data).returning();
+    return item;
+  }
+
+  async updateInventoryItem(id: string, data: Partial<InsertInventory>): Promise<Inventory | undefined> {
+    const [item] = await db.update(inventory).set(data).where(eq(inventory.id, id)).returning();
+    return item;
+  }
+
+  async deleteInventoryItem(id: string): Promise<boolean> {
+    const result = await db.delete(inventory).where(eq(inventory.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getInventoryPurchases(inventoryId: string): Promise<InventoryPurchase[]> {
+    return db.select().from(inventoryPurchases).where(eq(inventoryPurchases.inventoryId, inventoryId));
+  }
+
+  async createInventoryPurchase(data: InsertInventoryPurchase): Promise<InventoryPurchase> {
+    const [purchase] = await db.insert(inventoryPurchases).values(data).returning();
+    const item = await this.getInventoryItem(data.inventoryId);
+    if (item) {
+      const newStock = Number(item.stockQuantity) + Number(data.quantity);
+      await this.updateInventoryItem(data.inventoryId, { stockQuantity: String(newStock) });
+    }
+    return purchase;
+  }
+
+  async getServiceMaterials(serviceId: string): Promise<ServiceMaterial[]> {
+    return db.select().from(serviceMaterials).where(eq(serviceMaterials.serviceId, serviceId));
+  }
+
+  async setServiceMaterials(serviceId: string, materials: { inventoryId: string; quantityNeeded: string }[]): Promise<ServiceMaterial[]> {
+    await db.delete(serviceMaterials).where(eq(serviceMaterials.serviceId, serviceId));
+    if (materials.length === 0) return [];
+    const rows = materials.map(m => ({ serviceId, inventoryId: m.inventoryId, quantityNeeded: m.quantityNeeded }));
+    return db.insert(serviceMaterials).values(rows).returning();
+  }
+
+  async getTreatmentPlans(bookingId: string): Promise<TreatmentPlan[]> {
+    return db.select().from(treatmentPlans).where(eq(treatmentPlans.bookingId, bookingId));
+  }
+
+  async createTreatmentPlan(data: InsertTreatmentPlan): Promise<TreatmentPlan> {
+    const [plan] = await db.insert(treatmentPlans).values(data).returning();
+    return plan;
+  }
+
+  async completeTreatmentPlan(id: string, completedAt: Date): Promise<TreatmentPlan | undefined> {
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL! });
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const txDb = drizzle(client);
+
+      const [plan] = await txDb.update(treatmentPlans)
+        .set({ status: "COMPLETED", completedAt })
+        .where(and(eq(treatmentPlans.id, id), ne(treatmentPlans.status, "COMPLETED")))
+        .returning();
+
+      if (!plan) {
+        await client.query("ROLLBACK");
+        const [existing] = await db.select().from(treatmentPlans).where(eq(treatmentPlans.id, id));
+        return existing;
+      }
+
+      if (plan.serviceId) {
+        const bom = await txDb.select().from(serviceMaterials)
+          .where(eq(serviceMaterials.serviceId, plan.serviceId));
+
+        for (const mat of bom) {
+          await txDb.update(inventory)
+            .set({
+              stockQuantity: sql`GREATEST(0, ${inventory.stockQuantity} - ${Number(mat.quantityNeeded)})`,
+            })
+            .where(eq(inventory.id, mat.inventoryId));
+
+          await txDb.insert(materialUsages).values({
+            treatmentId: id,
+            inventoryId: mat.inventoryId,
+            quantityUsed: mat.quantityNeeded,
+            usageDate: completedAt,
+          });
+        }
+      }
+
+      await client.query("COMMIT");
+      return plan;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+      await pool.end();
+    }
+  }
+
+  async createAuditLog(data: InsertAuditLog): Promise<AuditLog> {
+    const [log] = await db.insert(auditLogs).values(data).returning();
+    return log;
+  }
+
+  async getAuditLogs(): Promise<AuditLog[]> {
+    return db.select().from(auditLogs);
+  }
+
+  async getTransaction(id: string): Promise<Transaction | undefined> {
+    const [txn] = await db.select().from(transactions).where(eq(transactions.id, id));
+    return txn;
+  }
+
+  async deleteTransaction(id: string): Promise<boolean> {
+    const result = await db.delete(transactions).where(eq(transactions.id, id)).returning();
     return result.length > 0;
   }
 }

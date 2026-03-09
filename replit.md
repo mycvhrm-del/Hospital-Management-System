@@ -4,7 +4,7 @@
 A nursing home ERP system built with Express + React (Vite) fullstack template. Manages rooms, bookings, guests, treatments, inventory, and billing.
 
 ## Tech Stack
-- **Frontend**: React + Vite, Tailwind CSS, Shadcn UI, Wouter router, TanStack Query
+- **Frontend**: React + Vite, Tailwind CSS, Shadcn UI, Wouter router, TanStack Query, Recharts
 - **Backend**: Express.js, Drizzle ORM, PostgreSQL
 - **Language**: TypeScript
 
@@ -21,24 +21,27 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - Booking - Room reservations
 - Service - Services and packages (type: SERVICE|PACKAGE) with name, description, price, isActive
 - BookingService - Junction table linking bookings to services (quantity, unitPrice, totalPrice)
-- TreatmentPlan - Medical treatment scheduling
-- Inventory - Medical supply tracking
-- MaterialUsage - Treatment material consumption
+- TreatmentPlan - Medical treatment scheduling (serviceId, scheduleTime, status, completedAt, notes)
+- Inventory - Medical supply tracking (itemName, stockQuantity, unit, minStockLevel)
+- InventoryPurchase - Purchase/restock records (inventoryId, quantity, purchaseDate, note)
+- ServiceMaterial (BOM) - Materials needed per service (serviceId, inventoryId, quantityNeeded)
+- MaterialUsage - Treatment material consumption (treatmentId, inventoryId, quantityUsed, usageDate)
 - Transaction - Payment records
-- AuditLog - System activity log
+- AuditLog - System activity log (userId, action, description, targetTable)
 
 ## Pages & Routes
-- `/` - Dashboard with stats overview
+- `/` - Dashboard with stat cards (today's revenue, room counts, active bookings) and room status pie chart
 - `/room-grid` - Interactive Room Grid Dashboard (color-coded cards, floor tabs, quick booking, check-out)
 - `/guests` - Guest list with CRUD, search, family member linking
 - `/guests/:id` - Guest detail with medical history viewer, family members, bookings
-- `/bookings` - Bookings list with search, status filter, create booking dialog with service selection
-- `/services` - Services/Packages CRUD (tabs: All/Service/Package) with create/edit/delete
+- `/bookings` - Bookings list with search, status filter, create booking dialog with service selection, treatment plan management per booking
+- `/services` - Services/Packages CRUD (tabs: All/Service/Package) with create/edit/delete, BOM configuration per service
 - `/billing` - Family billing overview (aggregated by family groups)
+- `/inventory` - Inventory management with CRUD, purchase history, low stock warnings
 - `/settings` - Room Categories and Rooms CRUD (Tabs layout)
 
 ## API Endpoints
-- `GET/POST/PATCH/DELETE /api/room-categories` - Room category CRUD
+- `GET/POST/PATCH/DELETE /api/room-categories` - Room category CRUD (audit log on price change)
 - `GET/POST/PATCH/DELETE /api/rooms` - Room CRUD
 - `GET/POST/PATCH/DELETE /api/guests` - Guest CRUD
 - `GET /api/guests/:id/family` - Family members
@@ -49,12 +52,26 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - `PATCH /api/bookings/:id/status` - Update booking status (manages room status transitions)
 - `GET /api/bookings/:id/transactions` - Booking transactions
 - `POST /api/transactions` - Create payment (DEPOSIT auto-confirms booking)
-- `GET/POST/PATCH/DELETE /api/services` - Service/Package CRUD
+- `DELETE /api/transactions/:id` - Delete payment (with audit log, updates booking depositPaid)
+- `GET/POST/PATCH/DELETE /api/services` - Service/Package CRUD (audit log on price change)
 - `GET /api/bookings/:id/services` - Services for a booking
 - `POST /api/booking-services` - Add service to a booking
-- `POST /api/bookings` - Create booking (accepts optional serviceIds[], server-authoritative pricing)
 - `GET /api/room-grid` - Enriched room data with active bookings and guest info
 - `GET /api/family-bill/:parentId` - Family bill with all bookings, transactions, totals
+- `GET/POST/PATCH/DELETE /api/inventory` - Inventory CRUD
+- `GET/POST /api/inventory/:id/purchases` - Purchase history and restock
+- `GET/POST /api/services/:id/materials` - BOM management (bulk replace)
+- `GET /api/bookings/:id/treatment-plans` - Treatment plans for a booking
+- `POST /api/treatment-plans` - Create treatment plan
+- `PATCH /api/treatment-plans/:id/complete` - Complete treatment (auto-deducts inventory via DB transaction)
+- `GET /api/audit-logs` - Audit log entries
+- `GET /api/dashboard/stats` - Dashboard statistics (room counts, today's revenue, booking counts)
+
+## Treatment BOM & Auto-Deduction
+- Each service can have a Bill of Materials (BOM) linking to inventory items with quantities needed
+- When a treatment plan is marked complete, inventory is automatically deducted based on BOM
+- Uses a DB transaction with atomic status transition (only completes if currently SCHEDULED)
+- Material usage records created with completion timestamp
 
 ## Booking Flow
 - Create booking → PENDING (room=PENDING)
@@ -69,16 +86,26 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - Yellow: PENDING
 - Gray: CLEANING
 
+## Audit Logging
+- Price changes on room categories and services
+- Payment deletions
+- Logged with action type, description, and target table
+
 ## Seed Data
 - 4 room categories, 9 rooms
 - 5 guests (1 family group with parent + 2 children, 2 solo guests)
 - 3 bookings (2 CHECKED_IN on rooms 102/302, 1 PENDING on room 402)
 - 8 services (5 SERVICE type, 3 PACKAGE type) in Mongolian
+- 7 inventory items (massage oil, towels, mud packs, needles, bath salts, disinfectant, disposable blankets)
+- BOM links between services and inventory items
 - Guests include medical history JSON data
 
 ## Key Design Decisions
 - Server-authoritative pricing: POST /api/bookings calculates totalAmount server-side from room basePrice × nights + selected service prices (ignores client totalAmount)
 - Service type enum: SERVICE | PACKAGE
+- Treatment completion uses DB transaction for atomicity (prevents race conditions and partial deductions)
+- staleTime: Infinity in queryClient defaults
+- All UI labels in Mongolian
 
 ## Running
 `npm run dev` starts both Express backend and Vite frontend dev server.

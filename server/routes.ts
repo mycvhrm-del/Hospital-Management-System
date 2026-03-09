@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertRoomCategorySchema, insertRoomSchema, insertGuestSchema, insertBookingSchema, insertTransactionSchema, insertServiceSchema } from "@shared/schema";
+import { insertRoomCategorySchema, insertRoomSchema, insertGuestSchema, insertBookingSchema, insertTransactionSchema, insertServiceSchema, insertInventorySchema, insertInventoryPurchaseSchema } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -29,8 +29,17 @@ export async function registerRoutes(
   app.patch("/api/room-categories/:id", async (req, res) => {
     const parsed = insertRoomCategorySchema.partial().safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const oldCategory = await storage.getRoomCategory(req.params.id);
     const category = await storage.updateRoomCategory(req.params.id, parsed.data);
     if (!category) return res.status(404).json({ message: "Category not found" });
+    if (oldCategory && parsed.data.basePrice && oldCategory.basePrice !== parsed.data.basePrice) {
+      await storage.createAuditLog({
+        userId: "system",
+        action: "PRICE_CHANGE",
+        description: `Өрөөний ангилал "${category.name}" үнэ ${oldCategory.basePrice}₮ → ${category.basePrice}₮`,
+        targetTable: "room_categories",
+      });
+    }
     res.json(category);
   });
 
@@ -368,8 +377,17 @@ export async function registerRoutes(
   app.patch("/api/services/:id", async (req, res) => {
     const parsed = insertServiceSchema.partial().safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const oldService = await storage.getService(req.params.id);
     const service = await storage.updateService(req.params.id, parsed.data);
     if (!service) return res.status(404).json({ message: "Service not found" });
+    if (oldService && parsed.data.price && oldService.price !== parsed.data.price) {
+      await storage.createAuditLog({
+        userId: "system",
+        action: "PRICE_CHANGE",
+        description: `Эмчилгээ "${service.name}" үнэ ${oldService.price}₮ → ${service.price}₮`,
+        targetTable: "services",
+      });
+    }
     res.json(service);
   });
 
@@ -403,6 +421,169 @@ export async function registerRoutes(
     });
 
     res.status(201).json(bs);
+  });
+
+  app.get("/api/inventory", async (_req, res) => {
+    const items = await storage.getInventoryItems();
+    res.json(items);
+  });
+
+  app.get("/api/inventory/:id", async (req, res) => {
+    const item = await storage.getInventoryItem(req.params.id);
+    if (!item) return res.status(404).json({ message: "Item not found" });
+    res.json(item);
+  });
+
+  app.post("/api/inventory", async (req, res) => {
+    const parsed = insertInventorySchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    try {
+      const item = await storage.createInventoryItem(parsed.data);
+      res.status(201).json(item);
+    } catch (err: any) {
+      if (err.code === "23505") return res.status(409).json({ message: "Ижил нэртэй бараа бүртгэгдсэн байна" });
+      throw err;
+    }
+  });
+
+  app.patch("/api/inventory/:id", async (req, res) => {
+    const parsed = insertInventorySchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const item = await storage.updateInventoryItem(req.params.id, parsed.data);
+    if (!item) return res.status(404).json({ message: "Item not found" });
+    res.json(item);
+  });
+
+  app.delete("/api/inventory/:id", async (req, res) => {
+    const success = await storage.deleteInventoryItem(req.params.id);
+    if (!success) return res.status(404).json({ message: "Item not found" });
+    res.json({ message: "Deleted" });
+  });
+
+  app.get("/api/inventory/:id/purchases", async (req, res) => {
+    const purchases = await storage.getInventoryPurchases(req.params.id);
+    res.json(purchases);
+  });
+
+  app.post("/api/inventory/:id/purchases", async (req, res) => {
+    const { quantity, purchaseDate, note } = req.body;
+    const qty = Number(quantity);
+    if (!qty || qty <= 0 || isNaN(qty)) return res.status(400).json({ message: "quantity must be a positive number" });
+    if (!purchaseDate || isNaN(Date.parse(purchaseDate))) return res.status(400).json({ message: "valid purchaseDate required" });
+    const item = await storage.getInventoryItem(req.params.id);
+    if (!item) return res.status(404).json({ message: "Inventory item not found" });
+    const purchase = await storage.createInventoryPurchase({
+      inventoryId: req.params.id,
+      quantity: String(qty),
+      purchaseDate: new Date(purchaseDate),
+      note: note || null,
+    });
+    res.status(201).json(purchase);
+  });
+
+  app.get("/api/services/:id/materials", async (req, res) => {
+    const materials = await storage.getServiceMaterials(req.params.id);
+    res.json(materials);
+  });
+
+  app.post("/api/services/:id/materials", async (req, res) => {
+    const { materials } = req.body;
+    if (!Array.isArray(materials)) return res.status(400).json({ message: "materials array required" });
+    for (const mat of materials) {
+      const qty = Number(mat.quantityNeeded);
+      if (!mat.inventoryId || !qty || qty <= 0 || isNaN(qty)) {
+        return res.status(400).json({ message: "Each material must have inventoryId and positive quantityNeeded" });
+      }
+    }
+    const service = await storage.getService(req.params.id);
+    if (!service) return res.status(404).json({ message: "Service not found" });
+    const result = await storage.setServiceMaterials(req.params.id, materials);
+    res.json(result);
+  });
+
+  app.get("/api/bookings/:id/treatment-plans", async (req, res) => {
+    const plans = await storage.getTreatmentPlans(req.params.id);
+    res.json(plans);
+  });
+
+  app.post("/api/treatment-plans", async (req, res) => {
+    const { bookingId, serviceId, serviceName, scheduleTime, notes } = req.body;
+    if (!bookingId || !serviceName || !scheduleTime) {
+      return res.status(400).json({ message: "bookingId, serviceName, scheduleTime required" });
+    }
+    const plan = await storage.createTreatmentPlan({
+      bookingId,
+      serviceId: serviceId || null,
+      serviceName,
+      scheduleTime: new Date(scheduleTime),
+      status: "SCHEDULED",
+      notes: notes || null,
+      completedAt: null,
+    });
+    res.status(201).json(plan);
+  });
+
+  app.patch("/api/treatment-plans/:id/complete", async (req, res) => {
+    const completedAt = req.body.completedAt ? new Date(req.body.completedAt) : new Date();
+    const plan = await storage.completeTreatmentPlan(req.params.id, completedAt);
+    if (!plan) return res.status(404).json({ message: "Treatment plan not found" });
+    res.json(plan);
+  });
+
+  app.delete("/api/transactions/:id", async (req, res) => {
+    const txn = await storage.getTransaction(req.params.id);
+    if (!txn) return res.status(404).json({ message: "Transaction not found" });
+
+    await storage.createAuditLog({
+      userId: "system",
+      action: "PAYMENT_DELETE",
+      description: `Төлбөр устгасан: ${Number(txn.amount).toLocaleString()}₮ (${txn.type}, ${txn.paymentMethod})`,
+      targetTable: "transactions",
+    });
+
+    const success = await storage.deleteTransaction(req.params.id);
+    if (!success) return res.status(404).json({ message: "Transaction not found" });
+
+    const allTxns = await storage.getBookingTransactions(txn.bookingId);
+    const totalPaid = allTxns.reduce((sum, t) => sum + Number(t.amount), 0);
+    await storage.updateBooking(txn.bookingId, { depositPaid: String(totalPaid) });
+
+    res.json({ message: "Deleted" });
+  });
+
+  app.get("/api/audit-logs", async (_req, res) => {
+    const logs = await storage.getAuditLogs();
+    res.json(logs);
+  });
+
+  app.get("/api/dashboard/stats", async (_req, res) => {
+    const allRooms = await storage.getRooms();
+    const allBookings = await storage.getAllBookings();
+
+    const availableCount = allRooms.filter(r => r.status === "AVAILABLE").length;
+    const occupiedCount = allRooms.filter(r => r.status === "OCCUPIED").length;
+    const pendingCount = allRooms.filter(r => r.status === "PENDING").length;
+    const cleaningCount = allRooms.filter(r => r.status === "CLEANING").length;
+
+    const today = new Date();
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+    const bookingIds = allBookings.map(b => b.id);
+    let todayRevenue = 0;
+    if (bookingIds.length > 0) {
+      const allTxns = await storage.getTransactionsByBookingIds(bookingIds);
+      todayRevenue = allTxns
+        .filter(t => new Date(t.createdAt) >= startOfDay && new Date(t.createdAt) < endOfDay)
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+    }
+
+    res.json({
+      rooms: { total: allRooms.length, available: availableCount, occupied: occupiedCount, pending: pendingCount, cleaning: cleaningCount },
+      todayRevenue,
+      totalBookings: allBookings.length,
+      activeBookings: allBookings.filter(b => b.status === "CHECKED_IN").length,
+    });
   });
 
   return httpServer;
