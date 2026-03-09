@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -41,7 +41,10 @@ const serviceFormSchema = z.object({
 
 type ServiceFormValues = z.infer<typeof serviceFormSchema>;
 
-type ServiceMaterialWithInventory = ServiceMaterial & { inventory?: Inventory };
+interface PendingMaterial {
+  inventoryId: string;
+  quantityNeeded: string;
+}
 
 export default function ServicesPage() {
   const { toast } = useToast();
@@ -50,8 +53,8 @@ export default function ServicesPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("ALL");
   const [materialsServiceId, setMaterialsServiceId] = useState<string | null>(null);
-  const [addMaterialInventoryId, setAddMaterialInventoryId] = useState("");
-  const [addMaterialQuantity, setAddMaterialQuantity] = useState("");
+  const [pendingMaterials, setPendingMaterials] = useState<PendingMaterial[]>([]);
+  const [hasChanges, setHasChanges] = useState(false);
 
   const { data: allServices = [], isLoading } = useQuery<Service[]>({
     queryKey: ["/api/services"],
@@ -69,6 +72,11 @@ export default function ServicesPage() {
   const materialsService = allServices.find(s => s.id === materialsServiceId);
 
   const inventoryMap = Object.fromEntries(inventoryItems.map(i => [i.id, i]));
+
+  const openMaterialsDialog = useCallback((serviceId: string) => {
+    setMaterialsServiceId(serviceId);
+    setHasChanges(false);
+  }, []);
 
   const form = useForm<ServiceFormValues>({
     resolver: zodResolver(serviceFormSchema),
@@ -131,10 +139,11 @@ export default function ServicesPage() {
   });
 
   const saveMaterialsMutation = useMutation({
-    mutationFn: (materials: { inventoryId: string; quantityNeeded: string }[]) =>
+    mutationFn: (materials: PendingMaterial[]) =>
       apiRequest("POST", `/api/services/${materialsServiceId}/materials`, { materials }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/services", materialsServiceId, "materials"] });
+      setHasChanges(false);
       toast({ title: "Амжилттай", description: "Бараа материал хадгалагдлаа" });
     },
     onError: (err: Error) => {
@@ -142,32 +151,46 @@ export default function ServicesPage() {
     },
   });
 
-  const handleAddMaterial = () => {
-    if (!addMaterialInventoryId || !addMaterialQuantity || Number(addMaterialQuantity) <= 0) {
-      toast({ title: "Алдаа", description: "Бараа болон тоо хэмжээ оруулна уу", variant: "destructive" });
-      return;
-    }
+  const currentMaterials: PendingMaterial[] = hasChanges
+    ? pendingMaterials
+    : serviceMaterials.map(m => ({ inventoryId: m.inventoryId, quantityNeeded: m.quantityNeeded }));
 
-    const alreadyExists = serviceMaterials.some(m => m.inventoryId === addMaterialInventoryId);
-    if (alreadyExists) {
-      toast({ title: "Алдаа", description: "Энэ бараа аль хэдийн нэмэгдсэн байна", variant: "destructive" });
-      return;
-    }
+  const usedInventoryIds = new Set(currentMaterials.map(m => m.inventoryId));
+  const availableInventory = inventoryItems.filter(inv => !usedInventoryIds.has(inv.id));
 
-    const updatedMaterials = [
-      ...serviceMaterials.map(m => ({ inventoryId: m.inventoryId, quantityNeeded: m.quantityNeeded })),
-      { inventoryId: addMaterialInventoryId, quantityNeeded: addMaterialQuantity },
-    ];
-    saveMaterialsMutation.mutate(updatedMaterials);
-    setAddMaterialInventoryId("");
-    setAddMaterialQuantity("");
+  const handleAddRow = () => {
+    const mats = hasChanges ? [...pendingMaterials] : serviceMaterials.map(m => ({ inventoryId: m.inventoryId, quantityNeeded: m.quantityNeeded }));
+    mats.push({ inventoryId: "", quantityNeeded: "" });
+    setPendingMaterials(mats);
+    setHasChanges(true);
   };
 
-  const handleRemoveMaterial = (inventoryId: string) => {
-    const updatedMaterials = serviceMaterials
-      .filter(m => m.inventoryId !== inventoryId)
-      .map(m => ({ inventoryId: m.inventoryId, quantityNeeded: m.quantityNeeded }));
-    saveMaterialsMutation.mutate(updatedMaterials);
+  const handleUpdateRow = (index: number, field: "inventoryId" | "quantityNeeded", value: string) => {
+    const mats = hasChanges
+      ? [...pendingMaterials]
+      : serviceMaterials.map(m => ({ inventoryId: m.inventoryId, quantityNeeded: m.quantityNeeded }));
+    mats[index] = { ...mats[index], [field]: value };
+    setPendingMaterials(mats);
+    setHasChanges(true);
+  };
+
+  const handleRemoveRow = (index: number) => {
+    const mats = hasChanges
+      ? [...pendingMaterials]
+      : serviceMaterials.map(m => ({ inventoryId: m.inventoryId, quantityNeeded: m.quantityNeeded }));
+    mats.splice(index, 1);
+    setPendingMaterials(mats);
+    setHasChanges(true);
+  };
+
+  const handleSaveMaterials = () => {
+    const valid = currentMaterials.filter(m => m.inventoryId && Number(m.quantityNeeded) > 0);
+    const duplicates = valid.filter((m, i) => valid.findIndex(v => v.inventoryId === m.inventoryId) !== i);
+    if (duplicates.length > 0) {
+      toast({ title: "Алдаа", description: "Давхардсан бараа байна", variant: "destructive" });
+      return;
+    }
+    saveMaterialsMutation.mutate(valid);
   };
 
   const onSubmit = (values: ServiceFormValues) => {
@@ -181,10 +204,6 @@ export default function ServicesPage() {
   const filtered = activeTab === "ALL" ? allServices :
     activeTab === "SERVICE" ? allServices.filter(s => s.type === "SERVICE") :
     allServices.filter(s => s.type === "PACKAGE");
-
-  const availableInventoryForAdd = inventoryItems.filter(
-    inv => !serviceMaterials.some(m => m.inventoryId === inv.id)
-  );
 
   return (
     <div className="p-6 space-y-6" data-testid="page-services">
@@ -260,11 +279,7 @@ export default function ServicesPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Button size="icon" variant="ghost" onClick={() => {
-                        setMaterialsServiceId(service.id);
-                        setAddMaterialInventoryId("");
-                        setAddMaterialQuantity("");
-                      }}
+                      <Button size="icon" variant="ghost" onClick={() => openMaterialsDialog(service.id)}
                         data-testid={`button-materials-service-${service.id}`}>
                         <Layers className="h-4 w-4" />
                       </Button>
@@ -388,99 +403,95 @@ export default function ServicesPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!materialsServiceId} onOpenChange={(open) => { if (!open) setMaterialsServiceId(null); }}>
-        <DialogContent className="max-w-lg">
+      <Dialog open={!!materialsServiceId} onOpenChange={(open) => { if (!open) { setMaterialsServiceId(null); setHasChanges(false); } }}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle data-testid="text-materials-dialog-title">
-              Бараа материал
+              Бараа материал тохируулах
             </DialogTitle>
             <DialogDescription>
-              {materialsService ? `"${materialsService.name}" эмчилгээнд шаардлагатай бараа материалууд` : ""}
+              {materialsService ? `"${materialsService.name}" — зарцуулагдах бараа материалуудыг тохируулна уу` : ""}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             {materialsLoading ? (
               <div className="text-sm text-muted-foreground">Ачаалж байна...</div>
-            ) : serviceMaterials.length === 0 ? (
-              <div className="text-sm text-muted-foreground py-4 text-center" data-testid="text-no-materials">
-                Бараа материал бүртгэгдээгүй байна
-              </div>
             ) : (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Бараа</TableHead>
-                      <TableHead className="text-right">Хэрэгцээ</TableHead>
-                      <TableHead className="w-12"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {serviceMaterials.map((mat) => {
-                      const inv = inventoryMap[mat.inventoryId];
+              <>
+                {currentMaterials.length === 0 ? (
+                  <div className="text-sm text-muted-foreground py-6 text-center border rounded-md" data-testid="text-no-materials">
+                    Бараа материал нэмэгдээгүй байна. Доорх товчийг дарж нэмнэ үү.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-[1fr_120px_40px] gap-2 px-1">
+                      <span className="text-xs font-medium text-muted-foreground">Бараа</span>
+                      <span className="text-xs font-medium text-muted-foreground">Тоо хэмжээ</span>
+                      <span />
+                    </div>
+                    {currentMaterials.map((mat, index) => {
+                      const inv = mat.inventoryId ? inventoryMap[mat.inventoryId] : null;
+                      const otherUsed = new Set(currentMaterials.filter((_, i) => i !== index).map(m => m.inventoryId));
+                      const rowAvailable = inventoryItems.filter(i => !otherUsed.has(i.id));
                       return (
-                        <TableRow key={mat.id} data-testid={`row-material-${mat.id}`}>
-                          <TableCell className="font-medium">
-                            {inv ? inv.itemName : mat.inventoryId}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {Number(mat.quantityNeeded)} {inv ? inv.unit : ""}
-                          </TableCell>
-                          <TableCell>
-                            <Button size="icon" variant="ghost"
-                              onClick={() => handleRemoveMaterial(mat.inventoryId)}
-                              disabled={saveMaterialsMutation.isPending}
-                              data-testid={`button-remove-material-${mat.id}`}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
+                        <div key={index} className="grid grid-cols-[1fr_120px_40px] gap-2 items-center" data-testid={`row-material-${index}`}>
+                          <Select value={mat.inventoryId} onValueChange={(v) => handleUpdateRow(index, "inventoryId", v)}>
+                            <SelectTrigger data-testid={`select-material-inventory-${index}`}>
+                              <SelectValue placeholder="Бараа сонгох" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {mat.inventoryId && inventoryMap[mat.inventoryId] && (
+                                <SelectItem value={mat.inventoryId}>
+                                  {inventoryMap[mat.inventoryId].itemName} ({inventoryMap[mat.inventoryId].unit})
+                                </SelectItem>
+                              )}
+                              {rowAvailable.filter(i => i.id !== mat.inventoryId).map(inv => (
+                                <SelectItem key={inv.id} value={inv.id}>
+                                  {inv.itemName} ({inv.unit})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="number"
+                            placeholder="Тоо"
+                            value={mat.quantityNeeded}
+                            onChange={(e) => handleUpdateRow(index, "quantityNeeded", e.target.value)}
+                            min="0.01"
+                            step="0.01"
+                            data-testid={`input-material-quantity-${index}`}
+                          />
+                          <Button size="icon" variant="ghost" onClick={() => handleRemoveRow(index)}
+                            data-testid={`button-remove-material-${index}`}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
                       );
                     })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+                  </div>
+                )}
 
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Бараа нэмэх</p>
-              <div className="flex items-end gap-2">
-                <div className="flex-1">
-                  <Select value={addMaterialInventoryId} onValueChange={setAddMaterialInventoryId}>
-                    <SelectTrigger data-testid="select-material-inventory">
-                      <SelectValue placeholder="Бараа сонгох" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableInventoryForAdd.map(inv => (
-                        <SelectItem key={inv.id} value={inv.id}>
-                          {inv.itemName} ({inv.unit})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="w-24">
-                  <Input
-                    type="number"
-                    placeholder="Тоо"
-                    value={addMaterialQuantity}
-                    onChange={(e) => setAddMaterialQuantity(e.target.value)}
-                    min="0.01"
-                    step="0.01"
-                    data-testid="input-material-quantity"
-                  />
-                </div>
-                <Button
-                  onClick={handleAddMaterial}
-                  disabled={saveMaterialsMutation.isPending || !addMaterialInventoryId || !addMaterialQuantity}
-                  data-testid="button-add-material"
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Нэмэх
+                <Button variant="outline" onClick={handleAddRow} className="w-full" data-testid="button-add-material-row">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Бараа материал нэмэх
                 </Button>
-              </div>
-            </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t">
+                  <Button variant="outline" onClick={() => { setMaterialsServiceId(null); setHasChanges(false); }}
+                    data-testid="button-cancel-materials">
+                    Цуцлах
+                  </Button>
+                  <Button
+                    onClick={handleSaveMaterials}
+                    disabled={saveMaterialsMutation.isPending || !hasChanges}
+                    data-testid="button-save-materials"
+                  >
+                    {saveMaterialsMutation.isPending ? "Хадгалж байна..." : "Хадгалах"}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
