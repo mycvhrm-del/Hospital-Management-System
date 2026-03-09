@@ -1,0 +1,99 @@
+// Сувиллын ERP - Суурь баазын бүтэц
+
+model Guest {
+  id                String    @id @default(uuid())
+  idNumber          String    @unique // Регистрийн дугаар
+  firstName         String
+  lastName          String
+  phone             String
+  medicalHistory    Json?     // Эмнэлгийн түүх, онош (JSON-оор хадгалах нь уян хатан)
+  isVip             Boolean   @default(false)
+  loyaltyPoints     Int       @default(0)
+  parentId          String?   // Гэр бүлийн толгой хүний ID (Billing нэгтгэхэд ашиглана)
+  parent            Guest?    @relation("FamilyLink", fields: [parentId], references: [id])
+  children          Guest[]   @relation("FamilyLink")
+  bookings          Booking[]
+  createdAt         DateTime  @default(now())
+}
+
+model Room {
+  id            String   @id @default(uuid())
+  roomNumber    String   @unique
+  categoryId    String
+  category      RoomCategory @relation(fields: [categoryId], references: [id])
+  status        RoomStatus   @default(AVAILABLE) // AVAILABLE, OCCUPIED, PENDING, CLEANING
+  bookings      Booking[]
+}
+
+model RoomCategory {
+  id            String   @id @default(uuid())
+  name          String   // Standard, Deluxe, VIP
+  basePrice     Decimal
+  capacity      Int      // Хэдэн хүн орох
+  rooms         Room[]
+}
+
+model Booking {
+  id              String        @id @default(uuid())
+  guestId         String
+  guest           Guest         @relation(fields: [guestId], references: [id])
+  roomId          String
+  room            Room          @relation(fields: [roomId], references: [id])
+  checkIn         DateTime
+  checkOut        DateTime
+  status          BookingStatus @default(PENDING)
+  totalAmount     Decimal
+  depositPaid     Decimal       @default(0)
+  transactions    Transaction[]
+  treatments      TreatmentPlan[]
+}
+
+model TreatmentPlan {
+  id              String    @id @default(uuid())
+  bookingId       String
+  booking         Booking   @relation(fields: [bookingId], references: [id])
+  serviceName     String    // Эмчилгээний нэр
+  scheduleTime    DateTime
+  status          String    // PLANNED, COMPLETED, CANCELLED
+  materialsUsed   MaterialUsage[]
+}
+
+model Inventory {
+  id              String    @id @default(uuid())
+  itemName        String    @unique
+  stockQuantity   Decimal
+  unit            String    // кг, ширхэг, мл
+  minStockLevel   Decimal   // Доод үлдэгдэл сануулга
+  usages          MaterialUsage[]
+}
+
+model MaterialUsage {
+  id              String    @id @default(uuid())
+  treatmentId     String
+  treatment       TreatmentPlan @relation(fields: [treatmentId], references: [id])
+  inventoryId     String
+  inventory       Inventory     @relation(fields: [inventoryId], references: [id])
+  quantityUsed    Decimal
+}
+
+model Transaction {
+  id              String    @id @default(uuid())
+  bookingId       String
+  booking         Booking   @relation(fields: [bookingId], references: [id])
+  amount          Decimal
+  type            String    // DEPOSIT, FINAL_PAYMENT, ADDITIONAL_SERVICE
+  paymentMethod   String    // CASH, CARD, QPAY
+  createdAt       DateTime  @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String   // Үйлдэл хийсэн ажилтны ID
+  action      String   // DELETE_BOOKING, CHANGE_PRICE г.м
+  description String
+  targetTable String
+  timestamp   DateTime @default(now())
+}
+
+enum RoomStatus { AVAILABLE; OCCUPIED; PENDING; CLEANING }
+enum BookingStatus { PENDING; CONFIRMED; CHECKED_IN; CHECKED_OUT; CANCELLED }
