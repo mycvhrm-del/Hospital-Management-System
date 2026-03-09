@@ -95,8 +95,18 @@ export async function registerRoutes(
     res.json({ message: "Deleted" });
   });
 
-  app.get("/api/guests", async (_req, res) => {
+  app.get("/api/guests", async (req, res) => {
     const allGuests = await storage.getGuests();
+    const search = (req.query.search as string || "").toLowerCase().trim();
+    if (search) {
+      const filtered = allGuests.filter(g =>
+        g.phone.toLowerCase().includes(search) ||
+        g.idNumber.toLowerCase().includes(search) ||
+        g.firstName.toLowerCase().includes(search) ||
+        g.lastName.toLowerCase().includes(search)
+      );
+      return res.json(filtered);
+    }
     res.json(allGuests);
   });
 
@@ -554,6 +564,70 @@ export async function registerRoutes(
   app.get("/api/audit-logs", async (_req, res) => {
     const logs = await storage.getAuditLogs();
     res.json(logs);
+  });
+
+  app.get("/api/weekly-timeline", async (req, res) => {
+    const startStr = req.query.start as string;
+    const start = startStr ? new Date(startStr) : (() => {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return d;
+    })();
+    if (isNaN(start.getTime())) {
+      return res.status(400).json({ message: "Invalid start date" });
+    }
+    const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const allRooms = await storage.getRooms();
+    const categories = await storage.getRoomCategories();
+    const categoryMap = Object.fromEntries(categories.map(c => [c.id, c]));
+    const allBookings = await storage.getAllBookings();
+
+    const weekBookings = allBookings.filter(b => {
+      if (b.status === "CANCELLED") return false;
+      const ci = new Date(b.checkIn);
+      const co = new Date(b.checkOut);
+      return ci < end && co > start;
+    });
+
+    const guestIds = Array.from(new Set(weekBookings.map(b => b.guestId)));
+    const allGuests = await storage.getGuests();
+    const guestMap = Object.fromEntries(allGuests.filter(g => guestIds.includes(g.id)).map(g => [g.id, g]));
+
+    const familyBookings: Record<string, typeof weekBookings> = {};
+    for (const b of weekBookings) {
+      if (!familyBookings[b.roomId]) familyBookings[b.roomId] = [];
+      familyBookings[b.roomId].push(b);
+    }
+
+    const result = allRooms.map(room => {
+      const cat = categoryMap[room.categoryId];
+      const roomBookings = familyBookings[room.id] || [];
+
+      const enriched = roomBookings.map(b => {
+        const guest = guestMap[b.guestId];
+        const familyMembers = guest?.parentId
+          ? allGuests.filter(g => g.parentId === guest.parentId || g.id === guest.parentId).filter(g => g.id !== guest.id)
+          : allGuests.filter(g => g.parentId === guest?.id);
+
+        return {
+          ...b,
+          guest: guest ? { id: guest.id, firstName: guest.firstName, lastName: guest.lastName, phone: guest.phone, isVip: guest.isVip } : null,
+          familyMembers: familyMembers.map(fm => ({ id: fm.id, firstName: fm.firstName, lastName: fm.lastName })),
+        };
+      });
+
+      return {
+        id: room.id,
+        roomNumber: room.roomNumber,
+        floor: room.floor,
+        status: room.status,
+        category: cat ? { id: cat.id, name: cat.name, basePrice: cat.basePrice, capacity: cat.capacity } : null,
+        bookings: enriched,
+      };
+    }).sort((a, b) => a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true }));
+
+    res.json({ start: start.toISOString(), end: end.toISOString(), rooms: result });
   });
 
   app.get("/api/dashboard/stats", async (_req, res) => {

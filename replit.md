@@ -32,6 +32,7 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 ## Pages & Routes
 - `/` - Dashboard with stat cards (today's revenue, room counts, active bookings) and room status pie chart
 - `/room-grid` - Interactive Room Grid Dashboard (color-coded cards, floor tabs, quick booking, check-out)
+- `/timeline` - Weekly Occupancy Timeline (7-day calendar with booking bars, room-by-day grid, quick booking from empty cells, booking popovers with guest/family info, category filter)
 - `/guests` - Guest list with CRUD, search, family member linking
 - `/guests/:id` - Guest detail with medical history viewer, family members, bookings
 - `/bookings` - Bookings list with search, status filter, create booking dialog with service selection, treatment plan management per booking
@@ -43,7 +44,8 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 ## API Endpoints
 - `GET/POST/PATCH/DELETE /api/room-categories` - Room category CRUD (audit log on price change)
 - `GET/POST/PATCH/DELETE /api/rooms` - Room CRUD
-- `GET/POST/PATCH/DELETE /api/guests` - Guest CRUD
+- `GET/POST/PATCH/DELETE /api/guests` - Guest CRUD (supports ?search= query param for phone/ID/name filtering)
+- `GET /api/weekly-timeline?start=YYYY-MM-DD` - Weekly timeline data with rooms, bookings, guests, family members
 - `GET /api/guests/:id/family` - Family members
 - `GET /api/guests/:id/bookings` - Guest bookings
 - `GET /api/guests/:id/family-bookings` - All family bookings
