@@ -1,38 +1,75 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { eq } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import {
+  roomCategories, rooms,
+  type RoomCategory, type InsertRoomCategory,
+  type Room, type InsertRoom,
+} from "@shared/schema";
 
-// modify the interface with any CRUD methods
-// you might need
+const db = drizzle(process.env.DATABASE_URL!);
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  getRoomCategories(): Promise<RoomCategory[]>;
+  getRoomCategory(id: string): Promise<RoomCategory | undefined>;
+  createRoomCategory(data: InsertRoomCategory): Promise<RoomCategory>;
+  updateRoomCategory(id: string, data: Partial<InsertRoomCategory>): Promise<RoomCategory | undefined>;
+  deleteRoomCategory(id: string): Promise<boolean>;
+
+  getRooms(): Promise<Room[]>;
+  getRoom(id: string): Promise<Room | undefined>;
+  createRoom(data: InsertRoom): Promise<Room>;
+  updateRoom(id: string, data: Partial<InsertRoom>): Promise<Room | undefined>;
+  deleteRoom(id: string): Promise<boolean>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DatabaseStorage implements IStorage {
+  async getRoomCategories(): Promise<RoomCategory[]> {
+    return db.select().from(roomCategories);
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getRoomCategory(id: string): Promise<RoomCategory | undefined> {
+    const [category] = await db.select().from(roomCategories).where(eq(roomCategories.id, id));
+    return category;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async createRoomCategory(data: InsertRoomCategory): Promise<RoomCategory> {
+    const [category] = await db.insert(roomCategories).values(data).returning();
+    return category;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async updateRoomCategory(id: string, data: Partial<InsertRoomCategory>): Promise<RoomCategory | undefined> {
+    const [category] = await db.update(roomCategories).set(data).where(eq(roomCategories.id, id)).returning();
+    return category;
+  }
+
+  async deleteRoomCategory(id: string): Promise<boolean> {
+    const result = await db.delete(roomCategories).where(eq(roomCategories.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getRooms(): Promise<Room[]> {
+    return db.select().from(rooms);
+  }
+
+  async getRoom(id: string): Promise<Room | undefined> {
+    const [room] = await db.select().from(rooms).where(eq(rooms.id, id));
+    return room;
+  }
+
+  async createRoom(data: InsertRoom): Promise<Room> {
+    const [room] = await db.insert(rooms).values(data).returning();
+    return room;
+  }
+
+  async updateRoom(id: string, data: Partial<InsertRoom>): Promise<Room | undefined> {
+    const [room] = await db.update(rooms).set(data).where(eq(rooms.id, id)).returning();
+    return room;
+  }
+
+  async deleteRoom(id: string): Promise<boolean> {
+    const result = await db.delete(rooms).where(eq(rooms.id, id)).returning();
+    return result.length > 0;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
