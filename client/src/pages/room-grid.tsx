@@ -239,12 +239,12 @@ function RoomCard({ room, onQuickBook, onPayment }: { room: RoomGridItem; onQuic
                   size="sm"
                   variant="destructive"
                   onClick={() => checkoutMutation.mutate()}
-                  disabled={checkoutMutation.isPending}
+                  disabled={checkoutMutation.isPending || balance > 0}
                   className="w-full"
                   data-testid={`button-checkout-${room.roomNumber}`}
                 >
                   <LogOut className="h-3.5 w-3.5 mr-2" />
-                  {checkoutMutation.isPending ? "Гарч байна..." : "Check-out хийх"}
+                  {checkoutMutation.isPending ? "Гарч байна..." : balance > 0 ? `Төлбөр төлөгдөөгүй (${balance.toLocaleString()}₮)` : "Check-out хийх"}
                 </Button>
                 <Button
                   size="sm"

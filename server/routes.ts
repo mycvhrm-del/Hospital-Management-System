@@ -331,6 +331,20 @@ export async function registerRoutes(
     if (!status || !validBookingStatuses.includes(status)) {
       return res.status(400).json({ message: "Буруу төлөв" });
     }
+
+    if (status === "CHECKED_OUT") {
+      const existing = await storage.getBooking(req.params.id);
+      if (!existing) return res.status(404).json({ message: "Booking not found" });
+      const totalAmount = Number(existing.totalAmount);
+      const totalPaid = Number(existing.depositPaid);
+      if (totalPaid < totalAmount) {
+        const remaining = totalAmount - totalPaid;
+        return res.status(400).json({
+          message: `Төлбөр бүрэн төлөгдөөгүй байна. Үлдэгдэл: ${remaining.toLocaleString()}₮`
+        });
+      }
+    }
+
     const booking = await storage.updateBookingStatus(req.params.id, status);
     if (!booking) return res.status(404).json({ message: "Booking not found" });
 

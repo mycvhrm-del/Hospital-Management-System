@@ -48,6 +48,7 @@ export interface IStorage {
   updateGuest(id: string, data: Partial<InsertGuest>): Promise<Guest | undefined>;
   deleteGuest(id: string): Promise<boolean>;
   getFamilyMembers(parentId: string): Promise<Guest[]>;
+  getBooking(id: string): Promise<Booking | undefined>;
   getGuestBookings(guestId: string): Promise<Booking[]>;
   getFamilyBookings(parentId: string): Promise<Booking[]>;
   getAllBookings(): Promise<Booking[]>;
@@ -195,6 +196,11 @@ export class DatabaseStorage implements IStorage {
 
   async getFamilyMembers(parentId: string): Promise<Guest[]> {
     return db.select().from(guests).where(eq(guests.parentId, parentId));
+  }
+
+  async getBooking(id: string): Promise<Booking | undefined> {
+    const [booking] = await db.select().from(bookings).where(eq(bookings.id, id));
+    return booking;
   }
 
   async getGuestBookings(guestId: string): Promise<Booking[]> {
