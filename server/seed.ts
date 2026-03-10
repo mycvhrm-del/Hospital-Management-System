@@ -7,11 +7,11 @@ export async function seedDatabase() {
   const existingFloors = await db.select().from(floors);
   if (existingFloors.length === 0) {
     await db.insert(floors).values([
-      { name: "1-р давхар", number: 1 },
-      { name: "2-р давхар", number: 2 },
-      { name: "3-р давхар", number: 3 },
-      { name: "4-р давхар", number: 4 },
-      { name: "5-р давхар", number: 5 },
+      { name: "1-р давхар", number: "1" },
+      { name: "2-р давхар", number: "2" },
+      { name: "3-р давхар", number: "3" },
+      { name: "4-р давхар", number: "4" },
+      { name: "5-р давхар", number: "5" },
     ]);
     console.log("Floors seeded");
   }
@@ -29,15 +29,15 @@ export async function seedDatabase() {
       .returning();
 
     await db.insert(rooms).values([
-      { roomNumber: "101", floor: 1, categoryId: standard.id, status: "AVAILABLE" as const },
-      { roomNumber: "102", floor: 1, categoryId: standard.id, status: "OCCUPIED" as const },
-      { roomNumber: "103", floor: 1, categoryId: standard.id, status: "AVAILABLE" as const },
-      { roomNumber: "201", floor: 2, categoryId: deluxe.id, status: "AVAILABLE" as const },
-      { roomNumber: "202", floor: 2, categoryId: deluxe.id, status: "CLEANING" as const },
-      { roomNumber: "301", floor: 3, categoryId: vip.id, status: "AVAILABLE" as const },
-      { roomNumber: "302", floor: 3, categoryId: vip.id, status: "OCCUPIED" as const },
-      { roomNumber: "401", floor: 4, categoryId: family.id, status: "AVAILABLE" as const },
-      { roomNumber: "402", floor: 4, categoryId: family.id, status: "PENDING" as const },
+      { roomNumber: "101", floor: "1", categoryId: standard.id, status: "AVAILABLE" as const },
+      { roomNumber: "102", floor: "1", categoryId: standard.id, status: "OCCUPIED" as const },
+      { roomNumber: "103", floor: "1", categoryId: standard.id, status: "AVAILABLE" as const },
+      { roomNumber: "201", floor: "2", categoryId: deluxe.id, status: "AVAILABLE" as const },
+      { roomNumber: "202", floor: "2", categoryId: deluxe.id, status: "CLEANING" as const },
+      { roomNumber: "301", floor: "3", categoryId: vip.id, status: "AVAILABLE" as const },
+      { roomNumber: "302", floor: "3", categoryId: vip.id, status: "OCCUPIED" as const },
+      { roomNumber: "401", floor: "4", categoryId: family.id, status: "AVAILABLE" as const },
+      { roomNumber: "402", floor: "4", categoryId: family.id, status: "PENDING" as const },
     ]);
 
     console.log("Room categories and rooms seeded");

@@ -63,14 +63,14 @@ const categoryFormSchema = z.object({
 
 const roomFormSchema = z.object({
   roomNumber: z.string().min(1, "Өрөөний дугаар оруулна уу"),
-  floor: z.coerce.number().min(1, "Давхар сонгоно уу"),
+  floor: z.string().min(1, "Давхар сонгоно уу"),
   categoryId: z.string().min(1, "Ангилал сонгоно уу"),
   status: z.enum(["AVAILABLE", "OCCUPIED", "PENDING", "CLEANING"]),
 });
 
 const floorFormSchema = z.object({
   name: z.string().min(1, "Нэр оруулна уу"),
-  number: z.coerce.number().min(1, "Давхарын дугаар 1-ээс их байх ёстой"),
+  number: z.string().min(1, "Давхарын дугаар оруулна уу"),
 });
 
 type CategoryFormValues = z.infer<typeof categoryFormSchema>;
@@ -371,14 +371,14 @@ function RoomSection() {
     return acc;
   }, {});
 
-  const floorMap = floorList.reduce<Record<number, Floor>>((acc, f) => {
+  const floorMap = floorList.reduce<Record<string, Floor>>((acc, f) => {
     acc[f.number] = f;
     return acc;
   }, {});
 
   const form = useForm<RoomFormValues>({
     resolver: zodResolver(roomFormSchema),
-    defaultValues: { roomNumber: "", floor: 1, categoryId: "", status: "AVAILABLE" },
+    defaultValues: { roomNumber: "", floor: "", categoryId: "", status: "AVAILABLE" },
   });
 
   const createMutation = useMutation({
@@ -423,7 +423,7 @@ function RoomSection() {
 
   const openCreate = () => {
     setEditingRoom(null);
-    form.reset({ roomNumber: "", floor: 1, categoryId: "", status: "AVAILABLE" });
+    form.reset({ roomNumber: "", floor: "", categoryId: "", status: "AVAILABLE" });
     setDialogOpen(true);
   };
 
@@ -578,7 +578,7 @@ function RoomSection() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Давхар</FormLabel>
-                      <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger data-testid="select-room-floor">
                             <SelectValue placeholder="Давхар сонгох" />
@@ -586,7 +586,7 @@ function RoomSection() {
                         </FormControl>
                         <SelectContent>
                           {floorList.map((f) => (
-                            <SelectItem key={f.id} value={String(f.number)}>
+                            <SelectItem key={f.id} value={f.number}>
                               {f.name}
                             </SelectItem>
                           ))}
@@ -692,7 +692,7 @@ function FloorSection() {
 
   const form = useForm<FloorFormValues>({
     resolver: zodResolver(floorFormSchema),
-    defaultValues: { name: "", number: 1 },
+    defaultValues: { name: "", number: "" },
   });
 
   const createMutation = useMutation({
@@ -737,14 +737,15 @@ function FloorSection() {
 
   const openCreate = () => {
     setEditingFloor(null);
-    const nextNumber = allFloors.length > 0 ? Math.max(...allFloors.map(f => f.number)) + 1 : 1;
-    form.reset({ name: `${nextNumber}-р давхар`, number: nextNumber });
+    const nums = allFloors.map(f => parseInt(f.number)).filter(n => !isNaN(n));
+    const nextNumber = nums.length > 0 ? Math.max(...nums) + 1 : 1;
+    form.reset({ name: `${nextNumber}-р давхар`, number: String(nextNumber) });
     setDialogOpen(true);
   };
 
   const openEdit = (floor: Floor) => {
     setEditingFloor(floor);
-    form.reset({ name: floor.name, number: floor.number });
+    form.reset({ name: floor.name, number: String(floor.number) });
     setDialogOpen(true);
   };
 
@@ -856,7 +857,7 @@ function FloorSection() {
                     <FormItem>
                       <FormLabel>Дугаар</FormLabel>
                       <FormControl>
-                        <Input type="number" min={1} placeholder="1" {...field} data-testid="input-floor-number" />
+                        <Input placeholder="Жишээ: 1, B1, М2" {...field} data-testid="input-floor-number" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

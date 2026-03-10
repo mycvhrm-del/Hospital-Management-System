@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { RoomCategory, Booking, Guest } from "@shared/schema";
+import type { RoomCategory, Booking, Guest, Floor } from "@shared/schema";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +34,7 @@ import { Separator } from "@/components/ui/separator";
 interface RoomGridItem {
   id: string;
   roomNumber: string;
-  floor: number;
+  floor: string;
   categoryId: string;
   status: "AVAILABLE" | "OCCUPIED" | "PENDING" | "CLEANING";
   category: RoomCategory | null;
@@ -373,9 +373,18 @@ export default function RoomGridPage() {
     queryKey: ["/api/guests"],
   });
 
+  const { data: dbFloors = [] } = useQuery<Floor[]>({
+    queryKey: ["/api/floors"],
+  });
+
+  const floorNameMap = dbFloors.reduce<Record<string, string>>((acc, f) => {
+    acc[f.number] = f.name;
+    return acc;
+  }, {});
+
   const floors = Array.from(
-    new Set(roomGrid.map((r) => r.floor))
-  ).sort((a, b) => a - b);
+    new Set([...dbFloors.map(f => f.number), ...roomGrid.map((r) => r.floor)])
+  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
   const filteredRooms = selectedFloor === "all"
     ? roomGrid
@@ -501,7 +510,7 @@ export default function RoomGridPage() {
             onClick={() => setSelectedFloor(String(floor))}
             data-testid={`button-floor-${floor}`}
           >
-            {floor}-р давхар
+            {floorNameMap[floor] || `${floor}-р давхар`}
           </Button>
         ))}
       </div>
@@ -516,7 +525,7 @@ export default function RoomGridPage() {
         <div className="flex flex-col items-center justify-center py-16">
           <BedDouble className="h-12 w-12 text-muted-foreground mb-3" />
           <p className="text-sm text-muted-foreground" data-testid="text-no-rooms-grid">
-            {selectedFloor === "all" ? "Өрөө бүртгэгдээгүй байна" : `${selectedFloor}-р давхарт өрөө бүртгэгдээгүй`}
+            {selectedFloor === "all" ? "Өрөө бүртгэгдээгүй байна" : `${floorNameMap[selectedFloor] || selectedFloor} давхарт өрөө бүртгэгдээгүй`}
           </p>
         </div>
       ) : (

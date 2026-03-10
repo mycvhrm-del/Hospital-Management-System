@@ -16,13 +16,13 @@ export const roomCategories = pgTable("room_categories", {
 export const floors = pgTable("floors", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
-  number: integer("number").notNull().unique(),
+  number: text("number").notNull().unique(),
 });
 
 export const rooms = pgTable("rooms", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   roomNumber: text("room_number").notNull().unique(),
-  floor: integer("floor").notNull().default(1),
+  floor: text("floor").notNull().default("1"),
   categoryId: varchar("category_id").notNull().references(() => roomCategories.id, { onDelete: "cascade" }),
   status: roomStatusEnum("status").default("AVAILABLE").notNull(),
 });
