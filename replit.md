@@ -21,7 +21,8 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - Booking - Room reservations
 - Service - Services and packages (type: SERVICE|PACKAGE) with name, description, price, isActive
 - BookingService - Junction table linking bookings to services (quantity, unitPrice, totalPrice)
-- TreatmentPlan - Medical treatment scheduling (serviceId, scheduleTime, status, completedAt, notes)
+- Staff - Doctors/nurses (name, role: DOCTOR|NURSE, phone, isActive)
+- TreatmentPlan - Medical treatment scheduling (serviceId, staffId, scheduleTime, status, completedAt, notes)
 - Inventory - Medical supply tracking (itemName, stockQuantity, unit, minStockLevel)
 - InventoryPurchase - Purchase/restock records (inventoryId, quantity, purchaseDate, note)
 - PackageService - Junction table linking packages to their included services (packageId, serviceId)
@@ -36,7 +37,8 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - `/room-grid` - Interactive Room Grid Dashboard (color-coded cards, floor tabs, quick booking, check-out)
 - `/timeline` - Weekly Occupancy Timeline (7-day calendar with booking bars, room-by-day grid, quick booking from empty cells, booking popovers with guest/family info, category filter)
 - `/guests` - Guest list with CRUD, search, family member linking
-- `/guests/:id` - Guest detail with medical history viewer, family members, bookings
+- `/guests/:id` - Guest detail with medical history viewer, family members, bookings, treatment creation (Doctor's Panel), My Schedule section
+- `/daily-schedule` - Daily treatment schedule showing all treatments for a selected date with complete/mark done actions and low stock alerts
 - `/bookings` - Bookings list with search, status filter, create booking dialog with service selection, treatment plan management per booking
 - `/sales` - Sales page showing CHECKED_IN and CHECKED_OUT bookings with revenue summary cards, payment and checkout actions
 - `/housekeeping` - Housekeeping page showing rooms needing cleaning (CLEANING status) with "Mark as Clean" action
@@ -70,7 +72,11 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - `GET/POST /api/services/:id/materials` - BOM management (bulk replace)
 - `GET /api/bookings/:id/treatment-plans` - Treatment plans for a booking
 - `POST /api/treatment-plans` - Create treatment plan
-- `PATCH /api/treatment-plans/:id/complete` - Complete treatment (auto-deducts inventory via DB transaction)
+- `PATCH /api/treatment-plans/:id/complete` - Complete treatment (auto-deducts inventory via DB transaction, returns low stock warnings)
+- `GET/POST/PATCH/DELETE /api/staff` - Staff (doctors/nurses) CRUD
+- `POST /api/treatment-plans/bulk` - Create recurring treatment plans (daily at specified time over date range)
+- `GET /api/daily-schedule?date=YYYY-MM-DD` - Daily schedule with enriched guest/room/staff data
+- `GET /api/guests/:id/treatment-plans` - All treatment plans for a guest across bookings
 - `GET /api/audit-logs` - Audit log entries
 - `GET /api/dashboard/stats` - Dashboard statistics (room counts, today's revenue, booking counts)
 

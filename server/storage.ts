@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
   roomCategories, floors, rooms, guests, bookings, transactions, services, packageServices, bookingServices,
-  inventory, inventoryPurchases, serviceMaterials, treatmentPlans, materialUsages, auditLogs,
+  inventory, inventoryPurchases, serviceMaterials, treatmentPlans, materialUsages, auditLogs, staff,
   type RoomCategory, type InsertRoomCategory,
   type Floor, type InsertFloor,
   type Room, type InsertRoom,
@@ -19,6 +19,7 @@ import {
   type MaterialUsage,
   type PackageService,
   type AuditLog, type InsertAuditLog,
+  type Staff, type InsertStaff,
 } from "@shared/schema";
 
 const db = drizzle(process.env.DATABASE_URL!);
@@ -88,8 +89,15 @@ export interface IStorage {
   setPackageServices(packageId: string, serviceIds: string[]): Promise<PackageService[]>;
 
   getTreatmentPlans(bookingId: string): Promise<TreatmentPlan[]>;
+  getAllTreatmentPlans(): Promise<TreatmentPlan[]>;
   createTreatmentPlan(data: InsertTreatmentPlan): Promise<TreatmentPlan>;
   completeTreatmentPlan(id: string, completedAt: Date): Promise<TreatmentPlan | undefined>;
+
+  getStaffMembers(): Promise<Staff[]>;
+  getStaffMember(id: string): Promise<Staff | undefined>;
+  createStaffMember(data: InsertStaff): Promise<Staff>;
+  updateStaffMember(id: string, data: Partial<InsertStaff>): Promise<Staff | undefined>;
+  deleteStaffMember(id: string): Promise<boolean>;
 
   createAuditLog(data: InsertAuditLog): Promise<AuditLog>;
   getAuditLogs(): Promise<AuditLog[]>;
@@ -441,6 +449,34 @@ export class DatabaseStorage implements IStorage {
       client.release();
       await pool.end();
     }
+  }
+
+  async getAllTreatmentPlans(): Promise<TreatmentPlan[]> {
+    return db.select().from(treatmentPlans);
+  }
+
+  async getStaffMembers(): Promise<Staff[]> {
+    return db.select().from(staff);
+  }
+
+  async getStaffMember(id: string): Promise<Staff | undefined> {
+    const [member] = await db.select().from(staff).where(eq(staff.id, id));
+    return member;
+  }
+
+  async createStaffMember(data: InsertStaff): Promise<Staff> {
+    const [member] = await db.insert(staff).values(data).returning();
+    return member;
+  }
+
+  async updateStaffMember(id: string, data: Partial<InsertStaff>): Promise<Staff | undefined> {
+    const [member] = await db.update(staff).set(data).where(eq(staff.id, id)).returning();
+    return member;
+  }
+
+  async deleteStaffMember(id: string): Promise<boolean> {
+    const result = await db.delete(staff).where(eq(staff.id, id)).returning();
+    return result.length > 0;
   }
 
   async createAuditLog(data: InsertAuditLog): Promise<AuditLog> {

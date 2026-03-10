@@ -18,6 +18,7 @@ import InventoryPage from "@/pages/inventory";
 import WeeklyTimelinePage from "@/pages/weekly-timeline";
 import SalesPage from "@/pages/sales";
 import HousekeepingPage from "@/pages/housekeeping";
+import DailySchedulePage from "@/pages/daily-schedule";
 
 function Router() {
   return (
@@ -34,6 +35,7 @@ function Router() {
       <Route path="/timeline" component={WeeklyTimelinePage} />
       <Route path="/sales" component={SalesPage} />
       <Route path="/housekeeping" component={HousekeepingPage} />
+      <Route path="/daily-schedule" component={DailySchedulePage} />
       <Route component={NotFound} />
     </Switch>
   );

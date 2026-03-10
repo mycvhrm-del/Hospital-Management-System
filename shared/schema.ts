@@ -52,11 +52,20 @@ export const bookings = pgTable("bookings", {
   depositPaid: decimal("deposit_paid", { precision: 10, scale: 2 }).default("0").notNull(),
 });
 
+export const staff = pgTable("staff", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  role: text("role").notNull(),
+  phone: text("phone"),
+  isActive: boolean("is_active").default(true).notNull(),
+});
+
 export const treatmentPlans = pgTable("treatment_plans", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   bookingId: varchar("booking_id").notNull(),
   serviceId: varchar("service_id"),
   serviceName: text("service_name").notNull(),
+  staffId: varchar("staff_id"),
   scheduleTime: timestamp("schedule_time").notNull(),
   status: text("status").notNull(),
   notes: text("notes"),
@@ -141,6 +150,7 @@ export const auditLogs = pgTable("audit_logs", {
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
 
+export const insertStaffSchema = createInsertSchema(staff).omit({ id: true });
 export const insertRoomCategorySchema = createInsertSchema(roomCategories).omit({ id: true });
 export const insertFloorSchema = createInsertSchema(floors).omit({ id: true });
 export const insertRoomSchema = createInsertSchema(rooms).omit({ id: true });
@@ -187,3 +197,5 @@ export type ServiceMaterial = typeof serviceMaterials.$inferSelect;
 export type InsertServiceMaterial = z.infer<typeof insertServiceMaterialSchema>;
 export type InventoryPurchase = typeof inventoryPurchases.$inferSelect;
 export type InsertInventoryPurchase = z.infer<typeof insertInventoryPurchaseSchema>;
+export type Staff = typeof staff.$inferSelect;
+export type InsertStaff = z.infer<typeof insertStaffSchema>;

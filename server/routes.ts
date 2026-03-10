@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertRoomCategorySchema, insertFloorSchema, insertRoomSchema, insertGuestSchema, insertBookingSchema, insertTransactionSchema, insertServiceSchema, insertInventorySchema, insertInventoryPurchaseSchema } from "@shared/schema";
+import { insertRoomCategorySchema, insertFloorSchema, insertRoomSchema, insertGuestSchema, insertBookingSchema, insertTransactionSchema, insertServiceSchema, insertInventorySchema, insertInventoryPurchaseSchema, insertStaffSchema } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -701,7 +701,23 @@ export async function registerRoutes(
     const completedAt = req.body.completedAt ? new Date(req.body.completedAt) : new Date();
     const plan = await storage.completeTreatmentPlan(req.params.id, completedAt);
     if (!plan) return res.status(404).json({ message: "Treatment plan not found" });
-    res.json(plan);
+
+    const lowStockWarnings: { itemName: string; stockQuantity: string; minStockLevel: string }[] = [];
+    if (plan.serviceId) {
+      const bom = await storage.getServiceMaterials(plan.serviceId);
+      for (const mat of bom) {
+        const item = await storage.getInventoryItem(mat.inventoryId);
+        if (item && Number(item.stockQuantity) < Number(item.minStockLevel)) {
+          lowStockWarnings.push({
+            itemName: item.itemName,
+            stockQuantity: item.stockQuantity,
+            minStockLevel: item.minStockLevel,
+          });
+        }
+      }
+    }
+
+    res.json({ ...plan, lowStockWarnings });
   });
 
   app.delete("/api/transactions/:id", async (req, res) => {
@@ -826,6 +842,155 @@ export async function registerRoutes(
       totalBookings: allBookings.length,
       activeBookings: allBookings.filter(b => b.status === "CHECKED_IN").length,
     });
+  });
+
+  app.get("/api/staff", async (_req, res) => {
+    const members = await storage.getStaffMembers();
+    res.json(members);
+  });
+
+  app.post("/api/staff", async (req, res) => {
+    const parsed = insertStaffSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const member = await storage.createStaffMember(parsed.data);
+    res.status(201).json(member);
+  });
+
+  app.patch("/api/staff/:id", async (req, res) => {
+    const parsed = insertStaffSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const member = await storage.updateStaffMember(req.params.id, parsed.data);
+    if (!member) return res.status(404).json({ message: "Staff not found" });
+    res.json(member);
+  });
+
+  app.delete("/api/staff/:id", async (req, res) => {
+    const success = await storage.deleteStaffMember(req.params.id);
+    if (!success) return res.status(404).json({ message: "Staff not found" });
+    res.json({ message: "Deleted" });
+  });
+
+  app.post("/api/treatment-plans/bulk", async (req, res) => {
+    const { bookingId, serviceId, staffId, startDate, endDate, dailyTime, notes } = req.body;
+    if (!bookingId || !serviceId || !startDate || !endDate || !dailyTime) {
+      return res.status(400).json({ message: "bookingId, serviceId, startDate, endDate, dailyTime required" });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({ message: "Invalid dates" });
+    }
+    if (end < start) {
+      return res.status(400).json({ message: "Дуусах огноо эхлэх огнооноос хойно байх ёстой" });
+    }
+    if (!/^\d{1,2}:\d{2}$/.test(dailyTime)) {
+      return res.status(400).json({ message: "Цагийн формат буруу (HH:MM)" });
+    }
+
+    const booking = await storage.getBooking(bookingId);
+    if (!booking) return res.status(404).json({ message: "Захиалга олдсонгүй" });
+
+    const svc = await storage.getService(serviceId);
+    if (!svc) return res.status(404).json({ message: "Эмчилгээ олдсонгүй" });
+    const serviceName = svc.name;
+
+    if (staffId) {
+      const staffMember = await storage.getStaffMember(staffId);
+      if (!staffMember) return res.status(404).json({ message: "Ажилтан олдсонгүй" });
+    }
+
+    const plans = [];
+    const current = new Date(start);
+    while (current <= end) {
+      const [hours, minutes] = dailyTime.split(":").map(Number);
+      const scheduleTime = new Date(current);
+      scheduleTime.setHours(hours, minutes, 0, 0);
+
+      const plan = await storage.createTreatmentPlan({
+        bookingId,
+        serviceId: serviceId || null,
+        serviceName,
+        staffId: staffId || null,
+        scheduleTime,
+        status: "SCHEDULED",
+        notes: notes || null,
+        completedAt: null,
+      });
+      plans.push(plan);
+      current.setDate(current.getDate() + 1);
+    }
+
+    res.status(201).json(plans);
+  });
+
+  app.get("/api/daily-schedule", async (req, res) => {
+    const dateStr = req.query.date as string;
+    const date = dateStr ? new Date(dateStr) : new Date();
+    if (isNaN(date.getTime())) {
+      return res.status(400).json({ message: "Invalid date" });
+    }
+
+    const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    const allPlans = await storage.getAllTreatmentPlans();
+    const dayPlans = allPlans.filter(p => {
+      const t = new Date(p.scheduleTime);
+      return t >= dayStart && t < dayEnd;
+    });
+
+    const allBookings = await storage.getAllBookings();
+    const bookingMap = Object.fromEntries(allBookings.map(b => [b.id, b]));
+    const allGuests = await storage.getGuests();
+    const guestMap = Object.fromEntries(allGuests.map(g => [g.id, g]));
+    const allRooms = await storage.getRooms();
+    const roomMap = Object.fromEntries(allRooms.map(r => [r.id, r]));
+    const allStaff = await storage.getStaffMembers();
+    const staffMap = Object.fromEntries(allStaff.map(s => [s.id, s]));
+
+    const enriched = dayPlans.map(plan => {
+      const booking = bookingMap[plan.bookingId];
+      const guest = booking ? guestMap[booking.guestId] : null;
+      const room = booking ? roomMap[booking.roomId] : null;
+      const staffMember = plan.staffId ? staffMap[plan.staffId] : null;
+      return {
+        ...plan,
+        guest: guest ? { id: guest.id, firstName: guest.firstName, lastName: guest.lastName } : null,
+        room: room ? { id: room.id, roomNumber: room.roomNumber } : null,
+        staff: staffMember ? { id: staffMember.id, name: staffMember.name, role: staffMember.role } : null,
+      };
+    }).sort((a, b) => new Date(a.scheduleTime).getTime() - new Date(b.scheduleTime).getTime());
+
+    res.json(enriched);
+  });
+
+  app.get("/api/guests/:id/treatment-plans", async (req, res) => {
+    const guestId = req.params.id;
+    const allBookings = await storage.getAllBookings();
+    const guestBookings = allBookings.filter(b => b.guestId === guestId);
+
+    const allStaff = await storage.getStaffMembers();
+    const staffMap = Object.fromEntries(allStaff.map(s => [s.id, s]));
+    const allRooms = await storage.getRooms();
+    const roomMap = Object.fromEntries(allRooms.map(r => [r.id, r]));
+
+    const allPlans: any[] = [];
+    for (const booking of guestBookings) {
+      const plans = await storage.getTreatmentPlans(booking.id);
+      for (const plan of plans) {
+        const staffMember = plan.staffId ? staffMap[plan.staffId] : null;
+        const room = roomMap[booking.roomId];
+        allPlans.push({
+          ...plan,
+          room: room ? { id: room.id, roomNumber: room.roomNumber } : null,
+          staff: staffMember ? { id: staffMember.id, name: staffMember.name, role: staffMember.role } : null,
+        });
+      }
+    }
+
+    allPlans.sort((a, b) => new Date(a.scheduleTime).getTime() - new Date(b.scheduleTime).getTime());
+    res.json(allPlans);
   });
 
   return httpServer;
