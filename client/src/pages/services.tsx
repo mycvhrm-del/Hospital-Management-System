@@ -1,12 +1,12 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Pencil, Trash2, Stethoscope, Package, Layers, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Stethoscope, Package, Layers, X, Search } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { Service, Inventory, ServiceMaterial } from "@shared/schema";
+import type { Service, Inventory, ServiceMaterial, PackageService } from "@shared/schema";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,11 +35,19 @@ const serviceFormSchema = z.object({
   name: z.string().min(1, "Нэр оруулна уу"),
   description: z.string().optional(),
   price: z.string().min(1, "Үнэ оруулна уу"),
-  type: z.enum(["SERVICE", "PACKAGE"]),
   isActive: z.boolean(),
 });
 
 type ServiceFormValues = z.infer<typeof serviceFormSchema>;
+
+const packageFormSchema = z.object({
+  name: z.string().min(1, "Нэр оруулна уу"),
+  description: z.string().optional(),
+  price: z.string().min(1, "Үнэ оруулна уу"),
+  isActive: z.boolean(),
+});
+
+type PackageFormValues = z.infer<typeof packageFormSchema>;
 
 interface PendingMaterial {
   inventoryId: string;
@@ -56,6 +64,11 @@ export default function ServicesPage() {
   const [pendingMaterials, setPendingMaterials] = useState<PendingMaterial[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
   const [dialogMaterials, setDialogMaterials] = useState<PendingMaterial[]>([]);
+
+  const [packageDialogOpen, setPackageDialogOpen] = useState(false);
+  const [editingPackage, setEditingPackage] = useState<Service | null>(null);
+  const [packageServiceIds, setPackageServiceIds] = useState<string[]>([]);
+  const [serviceSearch, setServiceSearch] = useState("");
 
   const { data: allServices = [], isLoading } = useQuery<Service[]>({
     queryKey: ["/api/services"],
@@ -76,9 +89,18 @@ export default function ServicesPage() {
     enabled: !!editingServiceId && dialogOpen,
   });
 
+  const editingPackageId = editingPackage?.id;
+  const { data: editingPackageServices = [] } = useQuery<PackageService[]>({
+    queryKey: ["/api/services", editingPackageId, "package-services"],
+    enabled: !!editingPackageId && packageDialogOpen,
+  });
+
   const materialsService = allServices.find(s => s.id === materialsServiceId);
 
   const inventoryMap = Object.fromEntries(inventoryItems.map(i => [i.id, i]));
+
+  const individualServices = useMemo(() => allServices.filter(s => s.type === "SERVICE"), [allServices]);
+  const serviceMap = useMemo(() => Object.fromEntries(allServices.map(s => [s.id, s])), [allServices]);
 
   const openMaterialsDialog = useCallback((serviceId: string) => {
     setMaterialsServiceId(serviceId);
@@ -87,32 +109,63 @@ export default function ServicesPage() {
 
   const form = useForm<ServiceFormValues>({
     resolver: zodResolver(serviceFormSchema),
-    defaultValues: { name: "", description: "", price: "", type: "SERVICE", isActive: true },
+    defaultValues: { name: "", description: "", price: "", isActive: true },
   });
 
-  const openCreate = () => {
+  const packageForm = useForm<PackageFormValues>({
+    resolver: zodResolver(packageFormSchema),
+    defaultValues: { name: "", description: "", price: "", isActive: true },
+  });
+
+  const openCreateService = () => {
     setEditingService(null);
-    form.reset({ name: "", description: "", price: "", type: "SERVICE", isActive: true });
+    form.reset({ name: "", description: "", price: "", isActive: true });
     setDialogMaterials([]);
     setDialogOpen(true);
   };
 
-  const openEdit = (service: Service) => {
+  const openEditService = (service: Service) => {
     setEditingService(service);
     form.reset({
       name: service.name,
       description: service.description || "",
       price: service.price,
-      type: service.type,
       isActive: service.isActive,
     });
     setDialogMaterials([]);
     setDialogOpen(true);
   };
 
+  const openCreatePackage = () => {
+    setEditingPackage(null);
+    packageForm.reset({ name: "", description: "", price: "", isActive: true });
+    setPackageServiceIds([]);
+    setServiceSearch("");
+    setPackageDialogOpen(true);
+  };
+
+  const openEditPackage = (pkg: Service) => {
+    setEditingPackage(pkg);
+    packageForm.reset({
+      name: pkg.name,
+      description: pkg.description || "",
+      price: pkg.price,
+      isActive: pkg.isActive,
+    });
+    setPackageServiceIds([]);
+    setServiceSearch("");
+    setPackageDialogOpen(true);
+  };
+
+  useEffect(() => {
+    if (editingPackage && packageDialogOpen && editingPackageServices.length > 0) {
+      setPackageServiceIds(editingPackageServices.map(ps => ps.serviceId));
+    }
+  }, [editingPackage, packageDialogOpen, editingPackageServices]);
+
   const createMutation = useMutation({
     mutationFn: async (data: ServiceFormValues) => {
-      const res = await apiRequest("POST", "/api/services", data);
+      const res = await apiRequest("POST", "/api/services", { ...data, type: "SERVICE" });
       const newService = await res.json();
       const validMats = dialogMaterials.filter(m => m.inventoryId && Number(m.quantityNeeded) > 0);
       if (validMats.length > 0) {
@@ -132,7 +185,7 @@ export default function ServicesPage() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: ServiceFormValues) => {
-      await apiRequest("PATCH", `/api/services/${editingService!.id}`, data);
+      await apiRequest("PATCH", `/api/services/${editingService!.id}`, { ...data, type: editingService!.type });
       const validMats = dialogMaterials.filter(m => m.inventoryId && Number(m.quantityNeeded) > 0);
       await apiRequest("POST", `/api/services/${editingService!.id}/materials`, { materials: validMats });
     },
@@ -149,12 +202,49 @@ export default function ServicesPage() {
     },
   });
 
+  const createPackageMutation = useMutation({
+    mutationFn: async (data: PackageFormValues) => {
+      const res = await apiRequest("POST", "/api/services", { ...data, type: "PACKAGE" });
+      const newPkg = await res.json();
+      if (packageServiceIds.length > 0) {
+        await apiRequest("POST", `/api/services/${newPkg.id}/package-services`, { serviceIds: packageServiceIds });
+      }
+      return newPkg;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      setPackageDialogOpen(false);
+      toast({ title: "Амжилттай", description: "Багц нэмэгдлээ" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const updatePackageMutation = useMutation({
+    mutationFn: async (data: PackageFormValues) => {
+      await apiRequest("PATCH", `/api/services/${editingPackage!.id}`, { ...data, type: "PACKAGE" });
+      await apiRequest("POST", `/api/services/${editingPackage!.id}/package-services`, { serviceIds: packageServiceIds });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      if (editingPackage) {
+        queryClient.invalidateQueries({ queryKey: ["/api/services", editingPackage.id, "package-services"] });
+      }
+      setPackageDialogOpen(false);
+      toast({ title: "Амжилттай", description: "Багц шинэчлэгдлээ" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/services/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
       setDeleteId(null);
-      toast({ title: "Амжилттай", description: "Эмчилгээ устгагдлаа" });
+      toast({ title: "Амжилттай", description: "Устгагдлаа" });
     },
     onError: (err: Error) => {
       toast({ title: "Алдаа", description: err.message, variant: "destructive" });
@@ -177,9 +267,6 @@ export default function ServicesPage() {
   const currentMaterials: PendingMaterial[] = hasChanges
     ? pendingMaterials
     : serviceMaterials.map(m => ({ inventoryId: m.inventoryId, quantityNeeded: m.quantityNeeded }));
-
-  const usedInventoryIds = new Set(currentMaterials.map(m => m.inventoryId));
-  const availableInventory = inventoryItems.filter(inv => !usedInventoryIds.has(inv.id));
 
   const handleAddRow = () => {
     const mats = hasChanges ? [...pendingMaterials] : serviceMaterials.map(m => ({ inventoryId: m.inventoryId, quantityNeeded: m.quantityNeeded }));
@@ -225,8 +312,6 @@ export default function ServicesPage() {
     }
   }, [editingService, dialogOpen, editingServiceMaterials]);
 
-  const dialogUsedIds = new Set(dialogMaterials.map(m => m.inventoryId));
-
   const handleDialogAddRow = () => {
     setDialogMaterials([...dialogMaterials, { inventoryId: "", quantityNeeded: "" }]);
   };
@@ -243,7 +328,7 @@ export default function ServicesPage() {
     setDialogMaterials(mats);
   };
 
-  const onSubmit = (values: ServiceFormValues) => {
+  const onSubmitService = (values: ServiceFormValues) => {
     if (editingService) {
       updateMutation.mutate(values);
     } else {
@@ -251,9 +336,39 @@ export default function ServicesPage() {
     }
   };
 
+  const onSubmitPackage = (values: PackageFormValues) => {
+    if (editingPackage) {
+      updatePackageMutation.mutate(values);
+    } else {
+      createPackageMutation.mutate(values);
+    }
+  };
+
+  const toggleServiceInPackage = (serviceId: string) => {
+    setPackageServiceIds(prev =>
+      prev.includes(serviceId) ? prev.filter(id => id !== serviceId) : [...prev, serviceId]
+    );
+  };
+
+  const filteredServicesForPackage = useMemo(() => {
+    const search = serviceSearch.toLowerCase().trim();
+    if (!search) return individualServices;
+    return individualServices.filter(s =>
+      s.name.toLowerCase().includes(search) || (s.description || "").toLowerCase().includes(search)
+    );
+  }, [individualServices, serviceSearch]);
+
   const filtered = activeTab === "ALL" ? allServices :
     activeTab === "SERVICE" ? allServices.filter(s => s.type === "SERVICE") :
     allServices.filter(s => s.type === "PACKAGE");
+
+  const handleEditClick = (service: Service) => {
+    if (service.type === "PACKAGE") {
+      openEditPackage(service);
+    } else {
+      openEditService(service);
+    }
+  };
 
   return (
     <div className="p-6 space-y-6" data-testid="page-services">
@@ -266,10 +381,16 @@ export default function ServicesPage() {
             Эмчилгээ болон багцуудын бүртгэл
           </p>
         </div>
-        <Button onClick={openCreate} data-testid="button-add-service">
-          <Plus className="h-4 w-4 mr-2" />
-          Шинэ эмчилгээ
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={openCreatePackage} data-testid="button-add-package">
+            <Package className="h-4 w-4 mr-2" />
+            Багц үүсгэх
+          </Button>
+          <Button onClick={openCreateService} data-testid="button-add-service">
+            <Plus className="h-4 w-4 mr-2" />
+            Шинэ эмчилгээ
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -333,7 +454,7 @@ export default function ServicesPage() {
                         data-testid={`button-materials-service-${service.id}`}>
                         <Layers className="h-4 w-4" />
                       </Button>
-                      <Button size="icon" variant="ghost" onClick={() => openEdit(service)}
+                      <Button size="icon" variant="ghost" onClick={() => handleEditClick(service)}
                         data-testid={`button-edit-service-${service.id}`}>
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -357,11 +478,11 @@ export default function ServicesPage() {
               {editingService ? "Эмчилгээ засах" : "Шинэ эмчилгээ"}
             </DialogTitle>
             <DialogDescription>
-              Эмчилгээ эсвэл багцын мэдээлэл оруулна уу
+              Эмчилгээний мэдээлэл оруулна уу
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmitService)} className="space-y-4">
               <FormField
                 control={form.control}
                 name="name"
@@ -388,42 +509,19 @@ export default function ServicesPage() {
                   </FormItem>
                 )}
               />
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="price"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Үнэ (₮)</FormLabel>
-                      <FormControl>
-                        <Input type="number" {...field} data-testid="input-service-price" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Төрөл</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-service-type">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="SERVICE">Эмчилгээ</SelectItem>
-                          <SelectItem value="PACKAGE">Багц</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="price"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Үнэ (₮)</FormLabel>
+                    <FormControl>
+                      <Input type="number" {...field} data-testid="input-service-price" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="isActive"
@@ -514,6 +612,164 @@ export default function ServicesPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={packageDialogOpen} onOpenChange={(open) => { if (!open) setPackageDialogOpen(false); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle data-testid="text-package-dialog-title">
+              {editingPackage ? "Багц засах" : "Багц үүсгэх"}
+            </DialogTitle>
+            <DialogDescription>
+              Багцын мэдээлэл болон эмчилгээнүүдийг сонгоно уу
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...packageForm}>
+            <form onSubmit={packageForm.handleSubmit(onSubmitPackage)} className="space-y-4">
+              <FormField
+                control={packageForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Багцын нэр</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-package-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={packageForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Тайлбар</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} rows={2} data-testid="input-package-description" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={packageForm.control}
+                name="price"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Багцын үнэ (₮)</FormLabel>
+                    <FormControl>
+                      <Input type="number" {...field} data-testid="input-package-price" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={packageForm.control}
+                name="isActive"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-md border p-3">
+                    <FormLabel className="text-sm">Идэвхтэй</FormLabel>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange}
+                        data-testid="switch-package-active" />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <div className="space-y-3 rounded-md border p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">Эмчилгээний жагсаалт</p>
+                  <Badge variant="outline" data-testid="badge-package-service-count">
+                    {packageServiceIds.length} сонгосон
+                  </Badge>
+                </div>
+
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Эмчилгээ хайх..."
+                    className="pl-9 h-9 text-sm"
+                    value={serviceSearch}
+                    onChange={(e) => setServiceSearch(e.target.value)}
+                    data-testid="input-package-service-search"
+                  />
+                </div>
+
+                {packageServiceIds.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {packageServiceIds.map(sid => {
+                      const svc = serviceMap[sid];
+                      if (!svc) return null;
+                      return (
+                        <Badge key={sid} variant="secondary" className="gap-1 pr-1" data-testid={`badge-selected-service-${sid}`}>
+                          {svc.name}
+                          <button type="button" onClick={() => toggleServiceInPackage(sid)}
+                            className="ml-0.5 rounded-full p-0.5"
+                            data-testid={`button-remove-pkg-service-${sid}`}>
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="max-h-48 overflow-y-auto rounded-md border divide-y">
+                  {filteredServicesForPackage.length === 0 ? (
+                    <div className="text-xs text-muted-foreground text-center py-4" data-testid="text-no-services-found">
+                      {individualServices.length === 0 ? "Эмчилгээ бүртгэгдээгүй байна" : "Хайлтад тохирох эмчилгээ олдсонгүй"}
+                    </div>
+                  ) : (
+                    filteredServicesForPackage.map(svc => {
+                      const isSelected = packageServiceIds.includes(svc.id);
+                      return (
+                        <button
+                          key={svc.id}
+                          type="button"
+                          className={`w-full flex items-center justify-between px-3 py-2 text-sm text-left transition-colors ${
+                            isSelected ? "bg-primary/5" : ""
+                          }`}
+                          onClick={() => toggleServiceInPackage(svc.id)}
+                          data-testid={`button-toggle-service-${svc.id}`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">{svc.name}</div>
+                            {svc.description && (
+                              <div className="text-xs text-muted-foreground truncate">{svc.description}</div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 ml-2 shrink-0">
+                            <span className="text-xs text-muted-foreground">{Number(svc.price).toLocaleString()}₮</span>
+                            <div className={`h-4 w-4 rounded border flex items-center justify-center ${
+                              isSelected ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/30"
+                            }`}>
+                              {isSelected && <span className="text-[10px] font-bold">✓</span>}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setPackageDialogOpen(false)}
+                  data-testid="button-cancel-package">
+                  Цуцлах
+                </Button>
+                <Button type="submit"
+                  disabled={createPackageMutation.isPending || updatePackageMutation.isPending}
+                  data-testid="button-save-package">
+                  {(createPackageMutation.isPending || updatePackageMutation.isPending) ? "Хадгалж байна..." : "Хадгалах"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!materialsServiceId} onOpenChange={(open) => { if (!open) { setMaterialsServiceId(null); setHasChanges(false); } }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -542,7 +798,6 @@ export default function ServicesPage() {
                       <span />
                     </div>
                     {currentMaterials.map((mat, index) => {
-                      const inv = mat.inventoryId ? inventoryMap[mat.inventoryId] : null;
                       const otherUsed = new Set(currentMaterials.filter((_, i) => i !== index).map(m => m.inventoryId));
                       const rowAvailable = inventoryItems.filter(i => !otherUsed.has(i.id));
                       return (
@@ -610,9 +865,9 @@ export default function ServicesPage() {
       <AlertDialog open={!!deleteId} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Эмчилгээ устгах</AlertDialogTitle>
+            <AlertDialogTitle>Устгах</AlertDialogTitle>
             <AlertDialogDescription>
-              Энэ эмчилгээг устгахдаа итгэлтэй байна уу?
+              Энэ бичлэгийг устгахдаа итгэлтэй байна уу?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

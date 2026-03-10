@@ -2,7 +2,7 @@ import { eq, inArray, and, or, ne, lt, gt, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
-  roomCategories, floors, rooms, guests, bookings, transactions, services, bookingServices,
+  roomCategories, floors, rooms, guests, bookings, transactions, services, packageServices, bookingServices,
   inventory, inventoryPurchases, serviceMaterials, treatmentPlans, materialUsages, auditLogs,
   type RoomCategory, type InsertRoomCategory,
   type Floor, type InsertFloor,
@@ -17,6 +17,7 @@ import {
   type ServiceMaterial, type InsertServiceMaterial,
   type TreatmentPlan, type InsertTreatmentPlan,
   type MaterialUsage,
+  type PackageService,
   type AuditLog, type InsertAuditLog,
 } from "@shared/schema";
 
@@ -80,6 +81,9 @@ export interface IStorage {
 
   getServiceMaterials(serviceId: string): Promise<ServiceMaterial[]>;
   setServiceMaterials(serviceId: string, materials: { inventoryId: string; quantityNeeded: string }[]): Promise<ServiceMaterial[]>;
+
+  getPackageServices(packageId: string): Promise<PackageService[]>;
+  setPackageServices(packageId: string, serviceIds: string[]): Promise<PackageService[]>;
 
   getTreatmentPlans(bookingId: string): Promise<TreatmentPlan[]>;
   createTreatmentPlan(data: InsertTreatmentPlan): Promise<TreatmentPlan>;
@@ -353,6 +357,17 @@ export class DatabaseStorage implements IStorage {
     if (materials.length === 0) return [];
     const rows = materials.map(m => ({ serviceId, inventoryId: m.inventoryId, quantityNeeded: m.quantityNeeded }));
     return db.insert(serviceMaterials).values(rows).returning();
+  }
+
+  async getPackageServices(packageId: string): Promise<PackageService[]> {
+    return db.select().from(packageServices).where(eq(packageServices.packageId, packageId));
+  }
+
+  async setPackageServices(packageId: string, serviceIds: string[]): Promise<PackageService[]> {
+    await db.delete(packageServices).where(eq(packageServices.packageId, packageId));
+    if (serviceIds.length === 0) return [];
+    const rows = serviceIds.map(sid => ({ packageId, serviceId: sid }));
+    return db.insert(packageServices).values(rows).returning();
   }
 
   async getTreatmentPlans(bookingId: string): Promise<TreatmentPlan[]> {

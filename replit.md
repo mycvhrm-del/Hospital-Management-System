@@ -24,6 +24,7 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - TreatmentPlan - Medical treatment scheduling (serviceId, scheduleTime, status, completedAt, notes)
 - Inventory - Medical supply tracking (itemName, stockQuantity, unit, minStockLevel)
 - InventoryPurchase - Purchase/restock records (inventoryId, quantity, purchaseDate, note)
+- PackageService - Junction table linking packages to their included services (packageId, serviceId)
 - ServiceMaterial (BOM) - Materials needed per service (serviceId, inventoryId, quantityNeeded)
 - MaterialUsage - Treatment material consumption (treatmentId, inventoryId, quantityUsed, usageDate)
 - Transaction - Payment records
@@ -37,7 +38,7 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - `/guests` - Guest list with CRUD, search, family member linking
 - `/guests/:id` - Guest detail with medical history viewer, family members, bookings
 - `/bookings` - Bookings list with search, status filter, create booking dialog with service selection, treatment plan management per booking
-- `/services` - Services/Packages CRUD (tabs: All/Service/Package) with create/edit/delete, BOM configuration per service
+- `/services` - Services/Packages CRUD (tabs: All/Service/Package). Service creation is separate from Package creation: services have name/price/materials (BOM), packages have name/price and a searchable list of included services from existing SERVICE records. Edit routes to correct dialog by type.
 - `/billing` - Family billing overview (aggregated by family groups)
 - `/inventory` - Inventory management with CRUD, purchase history, low stock warnings
 - `/settings` - Room Categories, Floors, and Rooms CRUD (Tabs layout with DB-managed floors)

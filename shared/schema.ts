@@ -116,6 +116,12 @@ export const services = pgTable("services", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const packageServices = pgTable("package_services", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  packageId: varchar("package_id").notNull(),
+  serviceId: varchar("service_id").notNull(),
+});
+
 export const bookingServices = pgTable("booking_services", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   bookingId: varchar("booking_id").notNull(),
@@ -144,6 +150,7 @@ export const insertInventorySchema = createInsertSchema(inventory).omit({ id: tr
 export const insertMaterialUsageSchema = createInsertSchema(materialUsages).omit({ id: true });
 export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true, createdAt: true });
 export const insertServiceSchema = createInsertSchema(services).omit({ id: true, createdAt: true });
+export const insertPackageServiceSchema = createInsertSchema(packageServices).omit({ id: true });
 export const insertBookingServiceSchema = createInsertSchema(bookingServices).omit({ id: true });
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, timestamp: true });
 export const insertServiceMaterialSchema = createInsertSchema(serviceMaterials).omit({ id: true });
@@ -169,6 +176,8 @@ export type Transaction = typeof transactions.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type Service = typeof services.$inferSelect;
 export type InsertService = z.infer<typeof insertServiceSchema>;
+export type PackageService = typeof packageServices.$inferSelect;
+export type InsertPackageService = z.infer<typeof insertPackageServiceSchema>;
 export type BookingService = typeof bookingServices.$inferSelect;
 export type InsertBookingService = z.infer<typeof insertBookingServiceSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;

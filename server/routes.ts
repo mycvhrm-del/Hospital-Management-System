@@ -567,6 +567,31 @@ export async function registerRoutes(
     res.json(result);
   });
 
+  app.get("/api/services/:id/package-services", async (req, res) => {
+    const items = await storage.getPackageServices(req.params.id);
+    res.json(items);
+  });
+
+  app.post("/api/services/:id/package-services", async (req, res) => {
+    const { serviceIds } = req.body;
+    if (!Array.isArray(serviceIds)) return res.status(400).json({ message: "serviceIds array required" });
+    const service = await storage.getService(req.params.id);
+    if (!service) return res.status(404).json({ message: "Service not found" });
+    if (service.type !== "PACKAGE") return res.status(400).json({ message: "Service is not a PACKAGE" });
+    const uniqueIds = [...new Set(serviceIds.filter((id: string) => id && id !== req.params.id))];
+    if (uniqueIds.length > 0) {
+      const allSvcs = await storage.getServices();
+      const svcMap = new Map(allSvcs.map(s => [s.id, s]));
+      for (const sid of uniqueIds) {
+        const svc = svcMap.get(sid);
+        if (!svc) return res.status(400).json({ message: `Service ${sid} not found` });
+        if (svc.type !== "SERVICE") return res.status(400).json({ message: `${svc.name} is not a service` });
+      }
+    }
+    const result = await storage.setPackageServices(req.params.id, uniqueIds);
+    res.json(result);
+  });
+
   app.get("/api/bookings/:id/treatment-plans", async (req, res) => {
     const plans = await storage.getTreatmentPlans(req.params.id);
     res.json(plans);
