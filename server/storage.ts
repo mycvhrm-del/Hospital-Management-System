@@ -2,9 +2,10 @@ import { eq, inArray, and, or, ne, lt, gt, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
-  roomCategories, rooms, guests, bookings, transactions, services, bookingServices,
+  roomCategories, floors, rooms, guests, bookings, transactions, services, bookingServices,
   inventory, inventoryPurchases, serviceMaterials, treatmentPlans, materialUsages, auditLogs,
   type RoomCategory, type InsertRoomCategory,
+  type Floor, type InsertFloor,
   type Room, type InsertRoom,
   type Guest, type InsertGuest,
   type Booking,
@@ -27,6 +28,12 @@ export interface IStorage {
   createRoomCategory(data: InsertRoomCategory): Promise<RoomCategory>;
   updateRoomCategory(id: string, data: Partial<InsertRoomCategory>): Promise<RoomCategory | undefined>;
   deleteRoomCategory(id: string): Promise<boolean>;
+
+  getFloors(): Promise<Floor[]>;
+  getFloor(id: string): Promise<Floor | undefined>;
+  createFloor(data: InsertFloor): Promise<Floor>;
+  updateFloor(id: string, data: Partial<InsertFloor>): Promise<Floor | undefined>;
+  deleteFloor(id: string): Promise<boolean>;
 
   getRooms(): Promise<Room[]>;
   getRoom(id: string): Promise<Room | undefined>;
@@ -107,6 +114,30 @@ export class DatabaseStorage implements IStorage {
 
   async deleteRoomCategory(id: string): Promise<boolean> {
     const result = await db.delete(roomCategories).where(eq(roomCategories.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getFloors(): Promise<Floor[]> {
+    return db.select().from(floors).orderBy(floors.number);
+  }
+
+  async getFloor(id: string): Promise<Floor | undefined> {
+    const result = await db.select().from(floors).where(eq(floors.id, id));
+    return result[0];
+  }
+
+  async createFloor(data: InsertFloor): Promise<Floor> {
+    const result = await db.insert(floors).values(data).returning();
+    return result[0];
+  }
+
+  async updateFloor(id: string, data: Partial<InsertFloor>): Promise<Floor | undefined> {
+    const result = await db.update(floors).set(data).where(eq(floors.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteFloor(id: string): Promise<boolean> {
+    const result = await db.delete(floors).where(eq(floors.id, id)).returning();
     return result.length > 0;
   }
 

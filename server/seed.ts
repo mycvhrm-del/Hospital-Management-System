@@ -1,9 +1,21 @@
 import { drizzle } from "drizzle-orm/node-postgres";
-import { roomCategories, rooms, guests, bookings, services, inventory, serviceMaterials } from "@shared/schema";
+import { roomCategories, floors, rooms, guests, bookings, services, inventory, serviceMaterials } from "@shared/schema";
 
 const db = drizzle(process.env.DATABASE_URL!);
 
 export async function seedDatabase() {
+  const existingFloors = await db.select().from(floors);
+  if (existingFloors.length === 0) {
+    await db.insert(floors).values([
+      { name: "1-р давхар", number: 1 },
+      { name: "2-р давхар", number: 2 },
+      { name: "3-р давхар", number: 3 },
+      { name: "4-р давхар", number: 4 },
+      { name: "5-р давхар", number: 5 },
+    ]);
+    console.log("Floors seeded");
+  }
+
   const existingCats = await db.select().from(roomCategories);
   if (existingCats.length === 0) {
     const [standard, deluxe, vip, family] = await db

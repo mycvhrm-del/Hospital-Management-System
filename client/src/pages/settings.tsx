@@ -3,10 +3,10 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Pencil, Trash2, Layers, BedDouble, Users } from "lucide-react";
+import { Plus, Pencil, Trash2, Layers, BedDouble, Users, Building } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { RoomCategory, Room } from "@shared/schema";
+import type { RoomCategory, Room, Floor } from "@shared/schema";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,8 +68,14 @@ const roomFormSchema = z.object({
   status: z.enum(["AVAILABLE", "OCCUPIED", "PENDING", "CLEANING"]),
 });
 
+const floorFormSchema = z.object({
+  name: z.string().min(1, "Нэр оруулна уу"),
+  number: z.coerce.number().min(1, "Давхарын дугаар 1-ээс их байх ёстой"),
+});
+
 type CategoryFormValues = z.infer<typeof categoryFormSchema>;
 type RoomFormValues = z.infer<typeof roomFormSchema>;
+type FloorFormValues = z.infer<typeof floorFormSchema>;
 
 const statusLabels: Record<string, string> = {
   AVAILABLE: "Сул",
@@ -354,10 +360,19 @@ function RoomSection() {
     queryKey: ["/api/room-categories"],
   });
 
+  const { data: floorList = [] } = useQuery<Floor[]>({
+    queryKey: ["/api/floors"],
+  });
+
   const isLoading = roomsLoading || catsLoading;
 
   const categoryMap = categories.reduce<Record<string, RoomCategory>>((acc, cat) => {
     acc[cat.id] = cat;
+    return acc;
+  }, {});
+
+  const floorMap = floorList.reduce<Record<number, Floor>>((acc, f) => {
+    acc[f.number] = f;
     return acc;
   }, {});
 
@@ -494,7 +509,7 @@ function RoomSection() {
                     {room.roomNumber}
                   </TableCell>
                   <TableCell data-testid={`text-room-floor-${room.id}`}>
-                    {room.floor}-р давхар
+                    {floorMap[room.floor]?.name || `${room.floor}-р давхар`}
                   </TableCell>
                   <TableCell data-testid={`text-room-category-${room.id}`}>
                     {categoryMap[room.categoryId]?.name || "—"}
@@ -570,9 +585,9 @@ function RoomSection() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((f) => (
-                            <SelectItem key={f} value={String(f)}>
-                              {f}-р давхар
+                          {floorList.map((f) => (
+                            <SelectItem key={f.id} value={String(f.number)}>
+                              {f.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -665,6 +680,238 @@ function RoomSection() {
   );
 }
 
+function FloorSection() {
+  const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingFloor, setEditingFloor] = useState<Floor | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const { data: allFloors = [], isLoading } = useQuery<Floor[]>({
+    queryKey: ["/api/floors"],
+  });
+
+  const form = useForm<FloorFormValues>({
+    resolver: zodResolver(floorFormSchema),
+    defaultValues: { name: "", number: 1 },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: FloorFormValues) => apiRequest("POST", "/api/floors", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/floors"] });
+      setDialogOpen(false);
+      form.reset();
+      toast({ title: "Амжилттай", description: "Давхар нэмэгдлээ" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (data: FloorFormValues) =>
+      apiRequest("PATCH", `/api/floors/${editingFloor!.id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/floors"] });
+      setDialogOpen(false);
+      setEditingFloor(null);
+      form.reset();
+      toast({ title: "Амжилттай", description: "Давхар шинэчлэгдлээ" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/floors/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/floors"] });
+      setDeleteId(null);
+      toast({ title: "Амжилттай", description: "Давхар устгагдлаа" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const openCreate = () => {
+    setEditingFloor(null);
+    const nextNumber = allFloors.length > 0 ? Math.max(...allFloors.map(f => f.number)) + 1 : 1;
+    form.reset({ name: `${nextNumber}-р давхар`, number: nextNumber });
+    setDialogOpen(true);
+  };
+
+  const openEdit = (floor: Floor) => {
+    setEditingFloor(floor);
+    form.reset({ name: floor.name, number: floor.number });
+    setDialogOpen(true);
+  };
+
+  const onSubmit = (values: FloorFormValues) => {
+    if (editingFloor) {
+      updateMutation.mutate(values);
+    } else {
+      createMutation.mutate(values);
+    }
+  };
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div>
+          <h3 className="text-lg font-semibold" data-testid="text-floors-title">Давхарууд</h3>
+          <p className="text-sm text-muted-foreground">Давхарын сонголтуудыг удирдах</p>
+        </div>
+        <Button onClick={openCreate} data-testid="button-add-floor">
+          <Plus className="h-4 w-4 mr-2" />
+          Давхар нэмэх
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </div>
+      ) : allFloors.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Building className="h-10 w-10 text-muted-foreground mb-3" />
+            <p className="text-sm text-muted-foreground" data-testid="text-no-floors">
+              Давхар бүртгэгдээгүй байна
+            </p>
+            <Button variant="outline" className="mt-4" onClick={openCreate} data-testid="button-add-floor-empty">
+              <Plus className="h-4 w-4 mr-2" />
+              Эхний давхараа нэмэх
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Дугаар</TableHead>
+                <TableHead>Нэр</TableHead>
+                <TableHead className="w-24 text-right">Үйлдэл</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {allFloors.map((floor) => (
+                <TableRow key={floor.id} data-testid={`row-floor-${floor.id}`}>
+                  <TableCell className="font-medium" data-testid={`text-floor-number-${floor.id}`}>
+                    {floor.number}
+                  </TableCell>
+                  <TableCell data-testid={`text-floor-name-${floor.id}`}>
+                    {floor.name}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => openEdit(floor)}
+                        data-testid={`button-edit-floor-${floor.id}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setDeleteId(floor.id)}
+                        data-testid={`button-delete-floor-${floor.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle data-testid="text-floor-dialog-title">
+              {editingFloor ? "Давхар засах" : "Шинэ давхар"}
+            </DialogTitle>
+            <DialogDescription>
+              Давхарын мэдээллийг оруулна уу
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="number"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Дугаар</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={1} placeholder="1" {...field} data-testid="input-floor-number" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Нэр</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Жишээ: 1-р давхар" {...field} data-testid="input-floor-name" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} data-testid="button-cancel-floor">
+                  Цуцлах
+                </Button>
+                <Button type="submit" disabled={isPending} data-testid="button-save-floor">
+                  {isPending ? "Хадгалж байна..." : "Хадгалах"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Давхар устгах уу?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Энэ давхарыг устгасан тохиолдолд буцаах боломжгүй.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-floor">Цуцлах</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteId && deleteMutation.mutate(deleteId)}
+              data-testid="button-confirm-delete-floor"
+            >
+              {deleteMutation.isPending ? "Устгаж байна..." : "Устгах"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   return (
     <div className="p-6 space-y-6" data-testid="page-settings">
@@ -683,6 +930,10 @@ export default function SettingsPage() {
             <Layers className="h-4 w-4 mr-2" />
             Ангилалууд
           </TabsTrigger>
+          <TabsTrigger value="floors" data-testid="tab-floors">
+            <Building className="h-4 w-4 mr-2" />
+            Давхарууд
+          </TabsTrigger>
           <TabsTrigger value="rooms" data-testid="tab-rooms">
             <BedDouble className="h-4 w-4 mr-2" />
             Өрөөнүүд
@@ -690,6 +941,9 @@ export default function SettingsPage() {
         </TabsList>
         <TabsContent value="categories" className="mt-4">
           <CategorySection />
+        </TabsContent>
+        <TabsContent value="floors" className="mt-4">
+          <FloorSection />
         </TabsContent>
         <TabsContent value="rooms" className="mt-4">
           <RoomSection />

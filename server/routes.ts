@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertRoomCategorySchema, insertRoomSchema, insertGuestSchema, insertBookingSchema, insertTransactionSchema, insertServiceSchema, insertInventorySchema, insertInventoryPurchaseSchema } from "@shared/schema";
+import { insertRoomCategorySchema, insertFloorSchema, insertRoomSchema, insertGuestSchema, insertBookingSchema, insertTransactionSchema, insertServiceSchema, insertInventorySchema, insertInventoryPurchaseSchema } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -46,6 +46,49 @@ export async function registerRoutes(
   app.delete("/api/room-categories/:id", async (req, res) => {
     const success = await storage.deleteRoomCategory(req.params.id);
     if (!success) return res.status(404).json({ message: "Category not found" });
+    res.json({ message: "Deleted" });
+  });
+
+  app.get("/api/floors", async (_req, res) => {
+    const allFloors = await storage.getFloors();
+    res.json(allFloors);
+  });
+
+  app.post("/api/floors", async (req, res) => {
+    const parsed = insertFloorSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    try {
+      const floor = await storage.createFloor(parsed.data);
+      res.status(201).json(floor);
+    } catch (err: any) {
+      if (err.code === "23505") return res.status(409).json({ message: "Энэ дугаартай давхар аль хэдийн бүртгэгдсэн байна" });
+      throw err;
+    }
+  });
+
+  app.patch("/api/floors/:id", async (req, res) => {
+    const parsed = insertFloorSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    try {
+      const floor = await storage.updateFloor(req.params.id, parsed.data);
+      if (!floor) return res.status(404).json({ message: "Floor not found" });
+      res.json(floor);
+    } catch (err: any) {
+      if (err.code === "23505") return res.status(409).json({ message: "Энэ дугаартай давхар аль хэдийн бүртгэгдсэн байна" });
+      throw err;
+    }
+  });
+
+  app.delete("/api/floors/:id", async (req, res) => {
+    const floor = await storage.getFloor(req.params.id);
+    if (!floor) return res.status(404).json({ message: "Floor not found" });
+    const allRooms = await storage.getRooms();
+    const roomsOnFloor = allRooms.filter(r => r.floor === floor.number);
+    if (roomsOnFloor.length > 0) {
+      return res.status(409).json({ message: `Энэ давхарт ${roomsOnFloor.length} өрөө бүртгэлтэй байгаа тул устгах боломжгүй` });
+    }
+    const success = await storage.deleteFloor(req.params.id);
+    if (!success) return res.status(404).json({ message: "Floor not found" });
     res.json({ message: "Deleted" });
   });
 

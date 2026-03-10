@@ -13,6 +13,12 @@ export const roomCategories = pgTable("room_categories", {
   capacity: integer("capacity").notNull(),
 });
 
+export const floors = pgTable("floors", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  number: integer("number").notNull().unique(),
+});
+
 export const rooms = pgTable("rooms", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   roomNumber: text("room_number").notNull().unique(),
@@ -129,6 +135,7 @@ export const auditLogs = pgTable("audit_logs", {
 });
 
 export const insertRoomCategorySchema = createInsertSchema(roomCategories).omit({ id: true });
+export const insertFloorSchema = createInsertSchema(floors).omit({ id: true });
 export const insertRoomSchema = createInsertSchema(rooms).omit({ id: true });
 export const insertGuestSchema = createInsertSchema(guests).omit({ id: true, createdAt: true });
 export const insertBookingSchema = createInsertSchema(bookings).omit({ id: true });
@@ -144,6 +151,8 @@ export const insertInventoryPurchaseSchema = createInsertSchema(inventoryPurchas
 
 export type RoomCategory = typeof roomCategories.$inferSelect;
 export type InsertRoomCategory = z.infer<typeof insertRoomCategorySchema>;
+export type Floor = typeof floors.$inferSelect;
+export type InsertFloor = z.infer<typeof insertFloorSchema>;
 export type Room = typeof rooms.$inferSelect;
 export type InsertRoom = z.infer<typeof insertRoomSchema>;
 export type Guest = typeof guests.$inferSelect;

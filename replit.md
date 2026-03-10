@@ -27,6 +27,7 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - ServiceMaterial (BOM) - Materials needed per service (serviceId, inventoryId, quantityNeeded)
 - MaterialUsage - Treatment material consumption (treatmentId, inventoryId, quantityUsed, usageDate)
 - Transaction - Payment records
+- Floor - Managed floor options (name, number) used in room assignment
 - AuditLog - System activity log (userId, action, description, targetTable)
 
 ## Pages & Routes
@@ -39,10 +40,11 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - `/services` - Services/Packages CRUD (tabs: All/Service/Package) with create/edit/delete, BOM configuration per service
 - `/billing` - Family billing overview (aggregated by family groups)
 - `/inventory` - Inventory management with CRUD, purchase history, low stock warnings
-- `/settings` - Room Categories and Rooms CRUD (Tabs layout)
+- `/settings` - Room Categories, Floors, and Rooms CRUD (Tabs layout with DB-managed floors)
 
 ## API Endpoints
 - `GET/POST/PATCH/DELETE /api/room-categories` - Room category CRUD (audit log on price change)
+- `GET/POST/PATCH/DELETE /api/floors` - Floor CRUD (conflict check on duplicate number, dependency check on delete)
 - `GET/POST/PATCH/DELETE /api/rooms` - Room CRUD
 - `GET/POST/PATCH/DELETE /api/guests` - Guest CRUD (supports ?search= query param for phone/ID/name filtering)
 - `GET /api/weekly-timeline?start=YYYY-MM-DD` - Weekly timeline data with rooms, bookings, guests, family members
