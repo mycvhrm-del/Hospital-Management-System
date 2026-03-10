@@ -393,16 +393,11 @@ export async function registerRoutes(
 
     const allTxns = await storage.getBookingTransactions(parsed.data.bookingId);
     const totalPaid = allTxns.reduce((sum, t) => sum + Number(t.amount), 0);
-    await storage.updateBooking(parsed.data.bookingId, { depositPaid: String(totalPaid) });
+    const booking = await storage.updateBooking(parsed.data.bookingId, { depositPaid: String(totalPaid) });
 
-    if (parsed.data.type === "DEPOSIT") {
-      const booking = await storage.updateBookingStatus(parsed.data.bookingId, "CONFIRMED");
-      if (booking) {
-        const activeBooking = await storage.getActiveBookingForRoom(booking.roomId);
-        if (activeBooking && activeBooking.status === "CONFIRMED") {
-          await storage.updateRoom(booking.roomId, { status: "PENDING" });
-        }
-      }
+    if (booking && (booking.status === "PENDING")) {
+      await storage.updateBookingStatus(parsed.data.bookingId, "CONFIRMED");
+      await storage.updateRoom(booking.roomId, { status: "PENDING" });
     }
 
     res.status(201).json(txn);

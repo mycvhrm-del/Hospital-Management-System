@@ -152,6 +152,11 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
               {room.guest.isVip && <Crown className="h-3 w-3 text-amber-500" />}
             </div>
           )}
+          {room.activeBooking && room.status === "PENDING" && (
+            <span className={`text-[10px] font-medium ${room.activeBooking.status === "CONFIRMED" ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+              {room.activeBooking.status === "CONFIRMED" ? "✓ Баталгаажсан" : "Хүлээгдэж буй"}
+            </span>
+          )}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
