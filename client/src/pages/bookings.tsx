@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CalendarDays, Search, UserPlus, X, Check, ClipboardList, Clock, CheckCircle2, Pencil, Trash2, Banknote, LogOut } from "lucide-react";
+import { Plus, CalendarDays, Search, UserPlus, X, Check, ClipboardList, Clock, CheckCircle2, Pencil, Trash2, Banknote, LogOut, LogIn } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Booking, Guest, Room, RoomCategory, Service, TreatmentPlan } from "@shared/schema";
@@ -422,6 +422,20 @@ export default function BookingsPage() {
     checkoutPaymentForm.reset({ amount: String(balance), type: "FINAL", paymentMethod: "CASH" });
   };
 
+  const checkinMutation = useMutation({
+    mutationFn: (bookingId: string) =>
+      apiRequest("PATCH", `/api/bookings/${bookingId}/status`, { status: "CHECKED_IN" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
+      toast({ title: "Амжилттай", description: "Check-in амжилттай хийгдлээ. Зочин борлуулалт руу шилжлээ." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+
   const bookingsOnly = allBookings.filter(b => b.status !== "CHECKED_IN" && b.status !== "CHECKED_OUT");
 
   const filtered = bookingsOnly.filter(b => {
@@ -442,6 +456,7 @@ export default function BookingsPage() {
 
   const canEdit = (status: string) => status !== "CHECKED_OUT" && status !== "CANCELLED";
   const canDelete = (status: string) => status !== "CHECKED_IN";
+  const canCheckin = (status: string) => status === "CONFIRMED" || status === "PENDING";
   const canCheckout = (status: string) => status === "CHECKED_IN";
   const canPay = (status: string) => status !== "CHECKED_OUT" && status !== "CANCELLED";
 
@@ -544,6 +559,19 @@ export default function BookingsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">
+                        {canCheckin(booking.status) && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-emerald-600 hover:text-emerald-700"
+                            onClick={() => checkinMutation.mutate(booking.id)}
+                            disabled={checkinMutation.isPending}
+                            data-testid={`button-checkin-booking-${booking.id}`}
+                            title="Check-in хийх"
+                          >
+                            <LogIn className="h-4 w-4" />
+                          </Button>
+                        )}
                         {canPay(booking.status) && balance > 0 && (
                           <Button
                             size="icon"
