@@ -219,6 +219,13 @@ export async function registerRoutes(
     res.json(txns);
   });
 
+  app.post("/api/transactions/bulk", async (req, res) => {
+    const { bookingIds } = req.body;
+    if (!Array.isArray(bookingIds)) return res.status(400).json({ message: "bookingIds required" });
+    const txns = await storage.getTransactionsByBookingIds(bookingIds);
+    res.json(txns);
+  });
+
   app.get("/api/room-grid", async (_req, res) => {
     const allRooms = await storage.getRooms();
     const categories = await storage.getRoomCategories();

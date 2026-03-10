@@ -6,7 +6,7 @@ import { z } from "zod";
 import { Search, Banknote, LogOut, User, Calendar, CreditCard, DollarSign, TrendingUp } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { Booking, Guest, Room, RoomCategory } from "@shared/schema";
+import type { Booking, Guest, Room, RoomCategory, Transaction } from "@shared/schema";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,6 +79,24 @@ export default function SalesPage() {
     b.status === "CHECKED_IN" || b.status === "CHECKED_OUT"
   );
 
+  const salesBookingIds = salesBookings.map(b => b.id);
+
+  const { data: allTransactions = [] } = useQuery<Transaction[]>({
+    queryKey: ["/api/transactions/bulk", salesBookingIds],
+    queryFn: () =>
+      salesBookingIds.length > 0
+        ? apiRequest("POST", "/api/transactions/bulk", { bookingIds: salesBookingIds }).then(r => r.json())
+        : Promise.resolve([]),
+    enabled: salesBookingIds.length > 0,
+  });
+
+  const depositsByBooking: Record<string, number> = {};
+  for (const txn of allTransactions) {
+    if (txn.type === "DEPOSIT") {
+      depositsByBooking[txn.bookingId] = (depositsByBooking[txn.bookingId] || 0) + Number(txn.amount);
+    }
+  }
+
   const filtered = salesBookings.filter(b => {
     if (statusFilter !== "ALL" && b.status !== statusFilter) return false;
     if (searchQuery) {
@@ -101,7 +119,7 @@ export default function SalesPage() {
 
   const paymentForm = useForm<PaymentValues>({
     resolver: zodResolver(paymentSchema),
-    defaultValues: { amount: "", type: "FINAL", paymentMethod: "CASH" },
+    defaultValues: { amount: "", paymentMethod: "CASH" },
   });
 
   const paymentMutation = useMutation({
@@ -115,6 +133,7 @@ export default function SalesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transactions/bulk"] });
       setPaymentBooking(null);
       paymentForm.reset();
       toast({ title: "Амжилттай", description: "Төлбөр бүртгэгдлээ" });
@@ -147,6 +166,7 @@ export default function SalesPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
       queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transactions/bulk"] });
       setCheckoutBooking(null);
       checkoutPaymentForm.reset();
       toast({ title: "Амжилттай", description: "Check-out амжилттай хийгдлээ" });
@@ -268,7 +288,8 @@ export default function SalesPage() {
                 <TableHead>Гарах/Гарсан</TableHead>
                 <TableHead>Төлөв</TableHead>
                 <TableHead className="text-right">Нийт дүн</TableHead>
-                <TableHead className="text-right">Төлсөн</TableHead>
+                <TableHead className="text-right">Урьдчилгаа</TableHead>
+                <TableHead className="text-right">Нийт төлсөн</TableHead>
                 <TableHead className="text-right">Үлдэгдэл</TableHead>
                 <TableHead>Үйлдэл</TableHead>
               </TableRow>
@@ -302,6 +323,7 @@ export default function SalesPage() {
                       </span>
                     </TableCell>
                     <TableCell className="text-right">{Number(booking.totalAmount).toLocaleString()}₮</TableCell>
+                    <TableCell className="text-right text-blue-600">{(depositsByBooking[booking.id] || 0).toLocaleString()}₮</TableCell>
                     <TableCell className="text-right">{Number(booking.depositPaid).toLocaleString()}₮</TableCell>
                     <TableCell className={`text-right ${balance > 0 ? "text-destructive font-medium" : ""}`}>
                       {balance.toLocaleString()}₮

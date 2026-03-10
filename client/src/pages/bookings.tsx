@@ -416,7 +416,9 @@ export default function BookingsPage() {
     checkoutPaymentForm.reset({ amount: String(balance), type: "FINAL", paymentMethod: "CASH" });
   };
 
-  const filtered = allBookings.filter(b => {
+  const bookingsOnly = allBookings.filter(b => b.status !== "CHECKED_IN" && b.status !== "CHECKED_OUT");
+
+  const filtered = bookingsOnly.filter(b => {
     if (statusFilter !== "ALL" && b.status !== statusFilter) return false;
     if (searchQuery) {
       const guest = guestMap[b.guestId];
@@ -470,11 +472,9 @@ export default function BookingsPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">Бүгд ({allBookings.length})</SelectItem>
+            <SelectItem value="ALL">Бүгд ({bookingsOnly.length})</SelectItem>
             <SelectItem value="PENDING">Хүлээгдэж буй</SelectItem>
             <SelectItem value="CONFIRMED">Баталгаажсан</SelectItem>
-            <SelectItem value="CHECKED_IN">Бүртгэлтэй</SelectItem>
-            <SelectItem value="CHECKED_OUT">Гарсан</SelectItem>
             <SelectItem value="CANCELLED">Цуцлагдсан</SelectItem>
           </SelectContent>
         </Select>
