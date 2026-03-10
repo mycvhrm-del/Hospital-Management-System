@@ -38,13 +38,13 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar>
-      <SidebarHeader className="px-4 py-5">
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="px-4 py-5 group-data-[collapsible=icon]:px-2">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
+          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary flex-shrink-0">
             <BedDouble className="h-4 w-4 text-primary-foreground" />
           </div>
-          <div>
+          <div className="overflow-hidden group-data-[collapsible=icon]:hidden">
             <h2 className="text-sm font-semibold tracking-tight">Сувилал ERP</h2>
             <p className="text-xs text-muted-foreground">Удирдлагын систем</p>
           </div>
