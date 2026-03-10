@@ -16,6 +16,7 @@ import BookingsPage from "@/pages/bookings";
 import ServicesPage from "@/pages/services";
 import InventoryPage from "@/pages/inventory";
 import WeeklyTimelinePage from "@/pages/weekly-timeline";
+import SalesPage from "@/pages/sales";
 
 function Router() {
   return (
@@ -30,6 +31,7 @@ function Router() {
       <Route path="/billing" component={BillingPage} />
       <Route path="/inventory" component={InventoryPage} />
       <Route path="/timeline" component={WeeklyTimelinePage} />
+      <Route path="/sales" component={SalesPage} />
       <Route component={NotFound} />
     </Switch>
   );
