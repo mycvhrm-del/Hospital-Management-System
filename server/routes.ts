@@ -261,6 +261,7 @@ export async function registerRoutes(
     const { serviceIds, depositAmount, ...bookingData } = req.body;
     if (bookingData.checkIn) bookingData.checkIn = new Date(bookingData.checkIn);
     if (bookingData.checkOut) bookingData.checkOut = new Date(bookingData.checkOut);
+    if (!bookingData.totalAmount) bookingData.totalAmount = "0";
     const parsed = insertBookingSchema.safeParse(bookingData);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
 
