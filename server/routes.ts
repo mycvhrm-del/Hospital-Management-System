@@ -354,8 +354,8 @@ export async function registerRoutes(
       const now = new Date();
       const plannedCheckOut = new Date(booking.checkOut);
       if (now < plannedCheckOut) {
-        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-        const updated = await storage.updateBooking(booking.id, { checkOut: todayEnd });
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const updated = await storage.updateBooking(booking.id, { checkOut: today });
         if (updated) Object.assign(booking, updated);
       }
       await storage.updateRoom(booking.roomId, { status: "CLEANING" });
@@ -364,8 +364,8 @@ export async function registerRoutes(
       const plannedCheckOut = new Date(booking.checkOut);
       const plannedCheckIn = new Date(booking.checkIn);
       if (now < plannedCheckOut && now > plannedCheckIn) {
-        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-        await storage.updateBooking(booking.id, { checkOut: todayEnd });
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        await storage.updateBooking(booking.id, { checkOut: today });
       }
       await storage.updateRoom(booking.roomId, { status: "CLEANING" });
     } else if (status === "CONFIRMED") {
@@ -717,21 +717,22 @@ export async function registerRoutes(
     const allBookings = await storage.getAllBookings();
 
     const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
     const weekBookings = allBookings.filter(b => {
       if (b.status === "CANCELLED") return false;
       const ci = new Date(b.checkIn);
       let co = new Date(b.checkOut);
-      if (b.status === "CHECKED_OUT" && co > todayEnd) {
-        co = todayEnd;
+      if (b.status === "CHECKED_OUT" && co > todayStart) {
+        co = todayStart;
       }
       return ci < end && co > start;
     }).map(b => {
       if (b.status === "CHECKED_OUT") {
         const co = new Date(b.checkOut);
-        if (co > todayEnd) {
-          return { ...b, checkOut: todayEnd };
+        if (co > todayStart) {
+          return { ...b, checkOut: todayStart };
         }
       }
       return b;
