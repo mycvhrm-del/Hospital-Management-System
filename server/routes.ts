@@ -376,17 +376,19 @@ export async function registerRoutes(
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         await storage.updateBooking(booking.id, { checkOut: today });
       }
-      const otherActive = await storage.getActiveBookingForRoom(booking.roomId);
-      if (otherActive && otherActive.id !== booking.id) {
-        if (otherActive.status === "CHECKED_IN") {
-          await storage.updateRoom(booking.roomId, { status: "OCCUPIED" });
-        } else {
-          await storage.updateRoom(booking.roomId, { status: "PENDING" });
-        }
-      } else if (previousStatus === "CHECKED_IN") {
+      if (previousStatus === "CHECKED_IN") {
         await storage.updateRoom(booking.roomId, { status: "CLEANING" });
       } else {
-        await storage.updateRoom(booking.roomId, { status: "AVAILABLE" });
+        const otherActive = await storage.getActiveBookingForRoom(booking.roomId);
+        if (otherActive && otherActive.id !== booking.id) {
+          if (otherActive.status === "CHECKED_IN") {
+            await storage.updateRoom(booking.roomId, { status: "OCCUPIED" });
+          } else {
+            await storage.updateRoom(booking.roomId, { status: "PENDING" });
+          }
+        } else {
+          await storage.updateRoom(booking.roomId, { status: "AVAILABLE" });
+        }
       }
     } else if (status === "CONFIRMED") {
       await storage.updateRoom(booking.roomId, { status: "PENDING" });
@@ -427,9 +429,9 @@ export async function registerRoutes(
 
     const txn = await storage.createTransaction(parsed.data);
 
-    const allTxns = await storage.getBookingTransactions(parsed.data.bookingId);
-    const totalPaid = allTxns.reduce((sum, t) => sum + Number(t.amount), 0);
-    const booking = await storage.updateBooking(parsed.data.bookingId, { depositPaid: String(totalPaid) });
+    const existingBooking = await storage.getBooking(parsed.data.bookingId);
+    const newTotal = Number(existingBooking?.depositPaid || 0) + Number(txn.amount);
+    const booking = await storage.updateBooking(parsed.data.bookingId, { depositPaid: String(newTotal) });
 
     if (booking && (booking.status === "PENDING")) {
       await storage.updateBookingStatus(parsed.data.bookingId, "CONFIRMED");

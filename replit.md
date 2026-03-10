@@ -39,6 +39,7 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - `/guests/:id` - Guest detail with medical history viewer, family members, bookings
 - `/bookings` - Bookings list with search, status filter, create booking dialog with service selection, treatment plan management per booking
 - `/sales` - Sales page showing CHECKED_IN and CHECKED_OUT bookings with revenue summary cards, payment and checkout actions
+- `/housekeeping` - Housekeeping page showing rooms needing cleaning (CLEANING status) with "Mark as Clean" action
 - `/services` - Services/Packages CRUD (tabs: All/Service/Package). Service creation is separate from Package creation: services have name/price/materials (BOM), packages have name/price and a searchable list of included services from existing SERVICE records. Edit routes to correct dialog by type.
 - `/billing` - Family billing overview (aggregated by family groups)
 - `/inventory` - Inventory management with CRUD, purchase history, low stock warnings
@@ -83,8 +84,10 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - Create booking → PENDING (room=PENDING)
 - Pay DEPOSIT → CONFIRMED (room stays PENDING)
 - CHECK_IN → room=OCCUPIED
-- CHECK_OUT → room=CLEANING
-- Cleaning done → room=AVAILABLE
+- CHECK_OUT → room=CLEANING (visible on Housekeeping page)
+- CANCEL (never checked in) → room=AVAILABLE
+- CANCEL (was checked in) → room=CLEANING
+- Cleaning done (Housekeeping or Room Grid) → room=AVAILABLE
 
 ## Room Status Colors (Room Grid)
 - Green: AVAILABLE
