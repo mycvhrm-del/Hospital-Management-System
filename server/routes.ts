@@ -339,9 +339,11 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Буруу төлөв" });
     }
 
+    const existing = await storage.getBooking(req.params.id);
+    if (!existing) return res.status(404).json({ message: "Booking not found" });
+    const previousStatus = existing.status;
+
     if (status === "CHECKED_OUT") {
-      const existing = await storage.getBooking(req.params.id);
-      if (!existing) return res.status(404).json({ message: "Booking not found" });
       const totalAmount = Number(existing.totalAmount);
       const totalPaid = Number(existing.depositPaid);
       if (totalPaid < totalAmount) {
@@ -374,7 +376,18 @@ export async function registerRoutes(
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         await storage.updateBooking(booking.id, { checkOut: today });
       }
-      await storage.updateRoom(booking.roomId, { status: "CLEANING" });
+      const otherActive = await storage.getActiveBookingForRoom(booking.roomId);
+      if (otherActive && otherActive.id !== booking.id) {
+        if (otherActive.status === "CHECKED_IN") {
+          await storage.updateRoom(booking.roomId, { status: "OCCUPIED" });
+        } else {
+          await storage.updateRoom(booking.roomId, { status: "PENDING" });
+        }
+      } else if (previousStatus === "CHECKED_IN") {
+        await storage.updateRoom(booking.roomId, { status: "CLEANING" });
+      } else {
+        await storage.updateRoom(booking.roomId, { status: "AVAILABLE" });
+      }
     } else if (status === "CONFIRMED") {
       await storage.updateRoom(booking.roomId, { status: "PENDING" });
     }
