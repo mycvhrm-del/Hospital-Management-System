@@ -36,6 +36,7 @@ const bookingFormSchema = z.object({
   roomId: z.string().min(1, "Өрөө сонгоно уу"),
   checkIn: z.string().min(1, "Орох огноо оруулна уу"),
   checkOut: z.string().min(1, "Гарах огноо оруулна уу"),
+  guestCount: z.number().min(1, "Хүний тоо оруулна уу"),
   totalAmount: z.string().min(1, "Дүн оруулна уу"),
   depositAmount: z.string().default("0"),
 });
@@ -228,7 +229,7 @@ export default function BookingsPage() {
 
   const form = useForm<BookingFormValues>({
     resolver: zodResolver(bookingFormSchema),
-    defaultValues: { guestId: "", roomId: "", checkIn: "", checkOut: "", totalAmount: "0", depositAmount: "0" },
+    defaultValues: { guestId: "", roomId: "", checkIn: "", checkOut: "", guestCount: 1, totalAmount: "0", depositAmount: "0" },
   });
 
   const selectedRoomId = form.watch("roomId");
@@ -255,7 +256,7 @@ export default function BookingsPage() {
     setGuestSearch("");
     setShowNewGuestForm(false);
     newGuestForm.reset();
-    form.reset({ guestId: "", roomId: "", checkIn: "", checkOut: "", totalAmount: "0", depositAmount: "0" });
+    form.reset({ guestId: "", roomId: "", checkIn: "", checkOut: "", guestCount: 1, totalAmount: "0", depositAmount: "0" });
     setDialogOpen(true);
   };
 
@@ -264,6 +265,7 @@ export default function BookingsPage() {
       apiRequest("POST", "/api/bookings", {
         ...data,
         totalAmount: String(grandTotal),
+        guestCount: data.guestCount,
         checkIn: new Date(data.checkIn).toISOString(),
         checkOut: new Date(data.checkOut).toISOString(),
         serviceIds: data.serviceIds,
@@ -1356,6 +1358,30 @@ export default function BookingsPage() {
                   )}
                 />
               </div>
+
+              <FormField
+                control={form.control}
+                name="guestCount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Хүний тоо</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={selectedCategory?.capacity || 10}
+                        {...field}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                        data-testid="input-booking-guest-count"
+                      />
+                    </FormControl>
+                    {selectedCategory && (
+                      <p className="text-xs text-muted-foreground">Багтаамж: {selectedCategory.capacity} хүн</p>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <div className="grid grid-cols-2 gap-4">
                 <FormField

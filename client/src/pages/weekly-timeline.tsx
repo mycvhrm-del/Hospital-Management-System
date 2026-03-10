@@ -103,6 +103,7 @@ function getDays(start: Date): Date[] {
 const quickBookingSchema = z.object({
   guestSearch: z.string().min(2, "2+ тэмдэгт оруулна уу"),
   checkOut: z.string().min(1, "Гарах огноо оруулна уу"),
+  guestCount: z.number().min(1, "Хүний тоо оруулна уу"),
   depositAmount: z.string().default("0"),
 });
 
@@ -140,11 +141,11 @@ export default function WeeklyTimelinePage() {
 
   const form = useForm<QuickBookingForm>({
     resolver: zodResolver(quickBookingSchema),
-    defaultValues: { guestSearch: "", checkOut: "", depositAmount: "0" },
+    defaultValues: { guestSearch: "", checkOut: "", guestCount: 1, depositAmount: "0" },
   });
 
   const bookingMutation = useMutation({
-    mutationFn: (data: { guestId: string; roomId: string; checkIn: string; checkOut: string; depositAmount?: string }) =>
+    mutationFn: (data: { guestId: string; roomId: string; checkIn: string; checkOut: string; guestCount?: number; depositAmount?: string }) =>
       apiRequest("POST", "/api/bookings", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/weekly-timeline"] });
@@ -203,11 +204,13 @@ export default function WeeklyTimelinePage() {
     const checkOut = form.getValues("checkOut");
     const depositAmount = form.getValues("depositAmount");
     if (!checkOut) return;
+    const guestCount = form.getValues("guestCount");
     bookingMutation.mutate({
       guestId: selectedGuest.id,
       roomId: quickBookRoom.id,
       checkIn: new Date(quickBookDate).toISOString(),
       checkOut: new Date(checkOut).toISOString(),
+      guestCount: guestCount || 1,
       depositAmount: depositAmount || "0",
     });
   };
@@ -389,6 +392,30 @@ export default function WeeklyTimelinePage() {
                     <FormControl>
                       <Input type="date" {...field} data-testid="input-quick-checkout" />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="guestCount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Хүний тоо</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={quickBookRoom?.category?.capacity || 10}
+                        {...field}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                        data-testid="input-quick-guest-count"
+                      />
+                    </FormControl>
+                    {quickBookRoom?.category && (
+                      <p className="text-xs text-muted-foreground">Багтаамж: {quickBookRoom.category.capacity} хүн</p>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}

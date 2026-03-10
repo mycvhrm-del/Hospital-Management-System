@@ -84,6 +84,7 @@ const quickBookingSchema = z.object({
   guestId: z.string().min(1, "Зочин сонгоно уу"),
   checkIn: z.string().min(1, "Орох огноо оруулна уу"),
   checkOut: z.string().min(1, "Гарах огноо оруулна уу"),
+  guestCount: z.number().min(1, "Хүний тоо оруулна уу"),
   totalAmount: z.string().min(1, "Нийт дүн оруулна уу"),
 });
 
@@ -399,7 +400,7 @@ export default function RoomGridPage() {
 
   const form = useForm<QuickBookingValues>({
     resolver: zodResolver(quickBookingSchema),
-    defaultValues: { guestId: "", checkIn: "", checkOut: "", totalAmount: "" },
+    defaultValues: { guestId: "", checkIn: "", checkOut: "", guestCount: 1, totalAmount: "" },
   });
 
   const bookMutation = useMutation({
@@ -409,6 +410,7 @@ export default function RoomGridPage() {
         roomId: quickBookRoom!.id,
         checkIn: new Date(data.checkIn).toISOString(),
         checkOut: new Date(data.checkOut).toISOString(),
+        guestCount: data.guestCount,
         totalAmount: data.totalAmount,
       }),
     onSuccess: () => {
@@ -646,6 +648,29 @@ export default function RoomGridPage() {
                   )}
                 />
               </div>
+              <FormField
+                control={form.control}
+                name="guestCount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Хүний тоо</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={quickBookRoom?.category?.capacity || 10}
+                        {...field}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                        data-testid="input-quick-book-guest-count"
+                      />
+                    </FormControl>
+                    {quickBookRoom?.category && (
+                      <p className="text-xs text-muted-foreground">Багтаамж: {quickBookRoom.category.capacity} хүн</p>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="totalAmount"

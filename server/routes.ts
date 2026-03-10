@@ -277,6 +277,14 @@ export async function registerRoutes(
       const room = await storage.getRoom(parsed.data.roomId);
       const categories = await storage.getRoomCategories();
       const category = room ? categories.find(c => c.id === room.categoryId) : null;
+
+      const guestCount = parsed.data.guestCount || 1;
+      if (category && guestCount > category.capacity) {
+        return res.status(400).json({
+          message: `Хүний тоо өрөөний багтаамжаас (${category.capacity}) хэтэрч байна`
+        });
+      }
+
       const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
       const roomTotal = category ? Number(category.basePrice) * nights : 0;
 

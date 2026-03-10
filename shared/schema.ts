@@ -47,6 +47,7 @@ export const bookings = pgTable("bookings", {
   checkIn: timestamp("check_in").notNull(),
   checkOut: timestamp("check_out").notNull(),
   status: bookingStatusEnum("status").default("PENDING").notNull(),
+  guestCount: integer("guest_count").default(1).notNull(),
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
   depositPaid: decimal("deposit_paid", { precision: 10, scale: 2 }).default("0").notNull(),
 });
