@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CalendarDays, Search, UserPlus, X, Check, ClipboardList, Clock, CheckCircle2, Pencil, Trash2, Banknote, LogOut, LogIn } from "lucide-react";
+import { Plus, CalendarDays, Search, UserPlus, X, Check, ClipboardList, Clock, CheckCircle2, Pencil, Trash2, Banknote, LogOut, LogIn, Ban } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Booking, Guest, Room, RoomCategory, Service, TreatmentPlan } from "@shared/schema";
@@ -436,6 +436,24 @@ export default function BookingsPage() {
     },
   });
 
+  const [cancelBookingId, setCancelBookingId] = useState<string | null>(null);
+  const cancelMutation = useMutation({
+    mutationFn: (bookingId: string) =>
+      apiRequest("PATCH", `/api/bookings/${bookingId}/status`, { status: "CANCELLED" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
+      setCancelBookingId(null);
+      toast({ title: "Амжилттай", description: "Захиалга цуцлагдлаа" });
+    },
+    onError: (err: Error) => {
+      setCancelBookingId(null);
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+  const canCancel = (status: string) => status === "PENDING" || status === "CONFIRMED";
+
   const bookingsOnly = allBookings.filter(b => b.status !== "CHECKED_IN" && b.status !== "CHECKED_OUT");
 
   const filtered = bookingsOnly.filter(b => {
@@ -603,6 +621,18 @@ export default function BookingsPage() {
                           <ClipboardList className="h-4 w-4 mr-1" />
                           Эмчилгээ
                         </Button>
+                        {canCancel(booking.status) && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => setCancelBookingId(booking.id)}
+                            data-testid={`button-cancel-booking-${booking.id}`}
+                            title="Захиалга цуцлах"
+                          >
+                            <Ban className="h-4 w-4" />
+                          </Button>
+                        )}
                         {canEdit(booking.status) && (
                           <Button
                             size="icon"
@@ -906,6 +936,27 @@ export default function BookingsPage() {
             <AlertDialogAction onClick={() => deleteBookingId && deleteBookingMutation.mutate(deleteBookingId)}
               data-testid="button-confirm-delete-booking">
               Устгах
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!cancelBookingId} onOpenChange={(open) => { if (!open) setCancelBookingId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Захиалга цуцлах</AlertDialogTitle>
+            <AlertDialogDescription>
+              Энэ захиалгыг цуцлахдаа итгэлтэй байна уу? Өрөөний хуваарь чөлөөлөгдөнө.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-dismiss-cancel-booking">Буцах</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => cancelBookingId && cancelMutation.mutate(cancelBookingId)}
+              data-testid="button-confirm-cancel-booking"
+            >
+              Цуцлах
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
