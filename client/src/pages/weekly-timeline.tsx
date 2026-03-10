@@ -69,14 +69,12 @@ const STATUS_COLORS: Record<string, string> = {
   PENDING: "bg-amber-400/80",
   CONFIRMED: "bg-blue-400/80",
   CHECKED_IN: "bg-emerald-500/80",
-  CHECKED_OUT: "bg-slate-400/80",
 };
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: "Хүлээгдэж буй",
   CONFIRMED: "Баталгаажсан",
   CHECKED_IN: "Бүртгэлтэй",
-  CHECKED_OUT: "Гарсан",
 };
 
 function getWeekStart(date: Date): Date {
@@ -313,7 +311,6 @@ export default function WeeklyTimelinePage() {
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500/80" /> Бүртгэлтэй</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-400/80" /> Баталгаажсан</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-amber-400/80" /> Хүлээгдэж буй</span>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-slate-400/80" /> Гарсан</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm border border-dashed" /> Сул (дарж захиалах)</span>
       </div>
 
@@ -597,7 +594,7 @@ function BookingCell({
             </div>
             <div className="flex items-center gap-1.5">
               <LogOut className="h-3 w-3" />
-              <span>{booking.status === "CHECKED_OUT" ? "Гарсан" : "Буцах"}: {new Date(booking.checkOut).toLocaleDateString("mn-MN")}</span>
+              <span>Буцах: {new Date(booking.checkOut).toLocaleDateString("mn-MN")}</span>
             </div>
           </div>
 

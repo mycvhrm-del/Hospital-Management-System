@@ -741,21 +741,10 @@ export async function registerRoutes(
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
     const weekBookings = allBookings.filter(b => {
-      if (b.status === "CANCELLED") return false;
+      if (b.status === "CANCELLED" || b.status === "CHECKED_OUT") return false;
       const ci = new Date(b.checkIn);
-      let co = new Date(b.checkOut);
-      if (b.status === "CHECKED_OUT" && co > todayStart) {
-        co = todayStart;
-      }
+      const co = new Date(b.checkOut);
       return ci < end && co > start;
-    }).map(b => {
-      if (b.status === "CHECKED_OUT") {
-        const co = new Date(b.checkOut);
-        if (co > todayStart) {
-          return { ...b, checkOut: todayStart };
-        }
-      }
-      return b;
     });
 
     const guestIds = Array.from(new Set(weekBookings.map(b => b.guestId)));
