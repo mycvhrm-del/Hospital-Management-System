@@ -350,7 +350,23 @@ export async function registerRoutes(
 
     if (status === "CHECKED_IN") {
       await storage.updateRoom(booking.roomId, { status: "OCCUPIED" });
-    } else if (status === "CHECKED_OUT" || status === "CANCELLED") {
+    } else if (status === "CHECKED_OUT") {
+      const now = new Date();
+      const plannedCheckOut = new Date(booking.checkOut);
+      if (now < plannedCheckOut) {
+        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        const updated = await storage.updateBooking(booking.id, { checkOut: todayEnd });
+        if (updated) Object.assign(booking, updated);
+      }
+      await storage.updateRoom(booking.roomId, { status: "CLEANING" });
+    } else if (status === "CANCELLED") {
+      const now = new Date();
+      const plannedCheckOut = new Date(booking.checkOut);
+      const plannedCheckIn = new Date(booking.checkIn);
+      if (now < plannedCheckOut && now > plannedCheckIn) {
+        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        await storage.updateBooking(booking.id, { checkOut: todayEnd });
+      }
       await storage.updateRoom(booking.roomId, { status: "CLEANING" });
     } else if (status === "CONFIRMED") {
       await storage.updateRoom(booking.roomId, { status: "PENDING" });
