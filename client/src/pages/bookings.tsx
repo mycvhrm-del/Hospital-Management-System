@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CalendarDays, Search, UserPlus, X, Check, ClipboardList, Clock, CheckCircle2 } from "lucide-react";
+import { Plus, CalendarDays, Search, UserPlus, X, Check, ClipboardList, Clock, CheckCircle2, Pencil, Trash2, Banknote, LogOut } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Booking, Guest, Room, RoomCategory, Service, TreatmentPlan } from "@shared/schema";
@@ -16,6 +16,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from "@/components/ui/form";
@@ -37,6 +41,22 @@ const bookingFormSchema = z.object({
 });
 
 type BookingFormValues = z.infer<typeof bookingFormSchema>;
+
+const editBookingSchema = z.object({
+  checkIn: z.string().min(1, "Орох огноо оруулна уу"),
+  checkOut: z.string().min(1, "Гарах огноо оруулна уу"),
+  totalAmount: z.string().min(1, "Дүн оруулна уу"),
+});
+
+type EditBookingValues = z.infer<typeof editBookingSchema>;
+
+const paymentSchema = z.object({
+  amount: z.string().min(1, "Дүн оруулна уу"),
+  type: z.enum(["DEPOSIT", "FINAL"]),
+  paymentMethod: z.enum(["CASH", "CARD", "TRANSFER"]),
+});
+
+type PaymentValues = z.infer<typeof paymentSchema>;
 
 const statusLabels: Record<string, string> = {
   PENDING: "Хүлээгдэж буй",
@@ -89,6 +109,11 @@ export default function BookingsPage() {
   const [treatmentDialogOpen, setTreatmentDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [showAddTreatment, setShowAddTreatment] = useState(false);
+
+  const [paymentBooking, setPaymentBooking] = useState<Booking | null>(null);
+  const [editBooking, setEditBooking] = useState<Booking | null>(null);
+  const [deleteBookingId, setDeleteBookingId] = useState<string | null>(null);
+  const [checkoutBooking, setCheckoutBooking] = useState<Booking | null>(null);
 
   const { data: allBookings = [], isLoading } = useQuery<Booking[]>({
     queryKey: ["/api/bookings"],
@@ -266,6 +291,131 @@ export default function BookingsPage() {
     );
   };
 
+  const paymentForm = useForm<PaymentValues>({
+    resolver: zodResolver(paymentSchema),
+    defaultValues: { amount: "", type: "DEPOSIT", paymentMethod: "CASH" },
+  });
+
+  const paymentMutation = useMutation({
+    mutationFn: (data: PaymentValues) =>
+      apiRequest("POST", "/api/transactions", {
+        bookingId: paymentBooking!.id,
+        amount: data.amount,
+        type: data.type,
+        paymentMethod: data.paymentMethod,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
+      setPaymentBooking(null);
+      paymentForm.reset();
+      toast({ title: "Амжилттай", description: "Төлбөр бүртгэгдлээ" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const onPaymentSubmit = (values: PaymentValues) => {
+    paymentMutation.mutate(values);
+  };
+
+  const openPayment = (booking: Booking) => {
+    setPaymentBooking(booking);
+    const balance = Number(booking.totalAmount) - Number(booking.depositPaid);
+    paymentForm.reset({ amount: String(balance), type: "DEPOSIT", paymentMethod: "CASH" });
+  };
+
+  const editForm = useForm<EditBookingValues>({
+    resolver: zodResolver(editBookingSchema),
+    defaultValues: { checkIn: "", checkOut: "", totalAmount: "" },
+  });
+
+  const openEdit = (booking: Booking) => {
+    setEditBooking(booking);
+    editForm.reset({
+      checkIn: new Date(booking.checkIn).toISOString().split("T")[0],
+      checkOut: new Date(booking.checkOut).toISOString().split("T")[0],
+      totalAmount: booking.totalAmount,
+    });
+  };
+
+  const updateBookingMutation = useMutation({
+    mutationFn: (data: EditBookingValues) =>
+      apiRequest("PATCH", `/api/bookings/${editBooking!.id}`, {
+        checkIn: new Date(data.checkIn).toISOString(),
+        checkOut: new Date(data.checkOut).toISOString(),
+        totalAmount: data.totalAmount,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
+      setEditBooking(null);
+      toast({ title: "Амжилттай", description: "Захиалга шинэчлэгдлээ" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteBookingMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/bookings/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
+      setDeleteBookingId(null);
+      toast({ title: "Амжилттай", description: "Захиалга устгагдлаа" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const checkoutPaymentForm = useForm<PaymentValues>({
+    resolver: zodResolver(paymentSchema),
+    defaultValues: { amount: "", type: "FINAL", paymentMethod: "CASH" },
+  });
+
+  const checkoutMutation = useMutation({
+    mutationFn: async () => {
+      const booking = checkoutBooking!;
+      const balance = Number(booking.totalAmount) - Number(booking.depositPaid);
+      const paymentAmount = Number(checkoutPaymentForm.getValues("amount"));
+      if (balance > 0) {
+        if (paymentAmount < balance) {
+          throw new Error(`Үлдэгдэл дүн (${balance.toLocaleString()}₮)-ээс бага төлбөр хийх боломжгүй`);
+        }
+        await apiRequest("POST", "/api/transactions", {
+          bookingId: booking.id,
+          amount: String(balance),
+          type: checkoutPaymentForm.getValues("type"),
+          paymentMethod: checkoutPaymentForm.getValues("paymentMethod"),
+        });
+      }
+      return apiRequest("PATCH", `/api/bookings/${booking.id}/status`, { status: "CHECKED_OUT" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
+      setCheckoutBooking(null);
+      checkoutPaymentForm.reset();
+      toast({ title: "Амжилттай", description: "Check-out амжилттай хийгдлээ" });
+    },
+    onError: (err: Error) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const openCheckout = (booking: Booking) => {
+    setCheckoutBooking(booking);
+    const balance = Number(booking.totalAmount) - Number(booking.depositPaid);
+    checkoutPaymentForm.reset({ amount: String(balance), type: "FINAL", paymentMethod: "CASH" });
+  };
+
   const filtered = allBookings.filter(b => {
     if (statusFilter !== "ALL" && b.status !== statusFilter) return false;
     if (searchQuery) {
@@ -281,6 +431,11 @@ export default function BookingsPage() {
 
   const sorted = [...filtered].sort((a, b) => new Date(b.checkIn).getTime() - new Date(a.checkIn).getTime());
   const today = new Date().toISOString().split("T")[0];
+
+  const canEdit = (status: string) => status !== "CHECKED_OUT" && status !== "CANCELLED";
+  const canDelete = (status: string) => status !== "CHECKED_IN";
+  const canCheckout = (status: string) => status === "CHECKED_IN";
+  const canPay = (status: string) => status !== "CHECKED_OUT" && status !== "CANCELLED";
 
   return (
     <div className="p-6 space-y-6" data-testid="page-bookings">
@@ -349,7 +504,7 @@ export default function BookingsPage() {
                 <TableHead className="text-right">Нийт дүн</TableHead>
                 <TableHead className="text-right">Төлсөн</TableHead>
                 <TableHead className="text-right">Үлдэгдэл</TableHead>
-                <TableHead></TableHead>
+                <TableHead className="w-48"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -382,15 +537,61 @@ export default function BookingsPage() {
                       {balance.toLocaleString()}₮
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => openTreatmentDialog(booking)}
-                        data-testid={`button-treatment-plans-${booking.id}`}
-                      >
-                        <ClipboardList className="h-4 w-4 mr-1" />
-                        Эмчилгээ
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        {canPay(booking.status) && balance > 0 && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => openPayment(booking)}
+                            data-testid={`button-pay-booking-${booking.id}`}
+                            title="Төлбөр хийх"
+                          >
+                            <Banknote className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canCheckout(booking.status) && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => openCheckout(booking)}
+                            data-testid={`button-checkout-booking-${booking.id}`}
+                            title="Check-out"
+                          >
+                            <LogOut className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openTreatmentDialog(booking)}
+                          data-testid={`button-treatment-plans-${booking.id}`}
+                        >
+                          <ClipboardList className="h-4 w-4 mr-1" />
+                          Эмчилгээ
+                        </Button>
+                        {canEdit(booking.status) && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => openEdit(booking)}
+                            data-testid={`button-edit-booking-${booking.id}`}
+                            title="Засах"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canDelete(booking.status) && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => setDeleteBookingId(booking.id)}
+                            data-testid={`button-delete-booking-${booking.id}`}
+                            title="Устгах"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -399,6 +600,282 @@ export default function BookingsPage() {
           </Table>
         </div>
       )}
+
+      <Dialog open={!!paymentBooking} onOpenChange={(open) => { if (!open) { setPaymentBooking(null); paymentForm.reset(); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle data-testid="text-booking-payment-title">Төлбөр хийх</DialogTitle>
+            <DialogDescription>
+              {paymentBooking && (() => {
+                const guest = guestMap[paymentBooking.guestId];
+                const room = roomMap[paymentBooking.roomId];
+                const bal = Number(paymentBooking.totalAmount) - Number(paymentBooking.depositPaid);
+                return `${guest ? `${guest.lastName} ${guest.firstName}` : "—"} · Өрөө ${room?.roomNumber || "—"} | Нийт: ${Number(paymentBooking.totalAmount).toLocaleString()}₮ | Төлсөн: ${Number(paymentBooking.depositPaid).toLocaleString()}₮ | Үлдэгдэл: ${bal.toLocaleString()}₮`;
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...paymentForm}>
+            <form onSubmit={paymentForm.handleSubmit(onPaymentSubmit)} className="space-y-4">
+              <FormField
+                control={paymentForm.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Төлбөрийн төрөл</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-booking-payment-type">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="DEPOSIT">Урьдчилгаа төлбөр</SelectItem>
+                        <SelectItem value="FINAL">Эцсийн төлбөр</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={paymentForm.control}
+                name="amount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Дүн (₮)</FormLabel>
+                    <FormControl>
+                      <Input type="number" {...field} data-testid="input-booking-payment-amount" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={paymentForm.control}
+                name="paymentMethod"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Төлбөрийн хэлбэр</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-booking-payment-method">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="CASH">Бэлэн мөнгө</SelectItem>
+                        <SelectItem value="CARD">Карт</SelectItem>
+                        <SelectItem value="TRANSFER">Шилжүүлэг</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => { setPaymentBooking(null); paymentForm.reset(); }}
+                  data-testid="button-cancel-booking-payment">
+                  Цуцлах
+                </Button>
+                <Button type="submit" disabled={paymentMutation.isPending}
+                  data-testid="button-confirm-booking-payment">
+                  {paymentMutation.isPending ? "Бүртгэж байна..." : "Төлбөр бүртгэх"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!checkoutBooking} onOpenChange={(open) => { if (!open) { setCheckoutBooking(null); checkoutPaymentForm.reset(); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle data-testid="text-checkout-dialog-title">Check-out хийх</DialogTitle>
+            <DialogDescription>
+              {checkoutBooking && (() => {
+                const guest = guestMap[checkoutBooking.guestId];
+                const room = roomMap[checkoutBooking.roomId];
+                return `${guest ? `${guest.lastName} ${guest.firstName}` : "—"} · Өрөө ${room?.roomNumber || "—"}`;
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+          {checkoutBooking && (() => {
+            const balance = Number(checkoutBooking.totalAmount) - Number(checkoutBooking.depositPaid);
+            return (
+              <div className="space-y-4">
+                <div className="bg-muted/50 rounded-md p-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Нийт дүн</span>
+                    <span className="font-medium">{Number(checkoutBooking.totalAmount).toLocaleString()}₮</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Төлсөн</span>
+                    <span className="font-medium">{Number(checkoutBooking.depositPaid).toLocaleString()}₮</span>
+                  </div>
+                  <div className="flex justify-between text-sm pt-2 border-t">
+                    <span className={`font-medium ${balance > 0 ? "text-destructive" : ""}`}>Үлдэгдэл</span>
+                    <span className={`font-semibold ${balance > 0 ? "text-destructive" : ""}`}>{balance.toLocaleString()}₮</span>
+                  </div>
+                </div>
+
+                {balance > 0 ? (
+                  <Form {...checkoutPaymentForm}>
+                    <form onSubmit={checkoutPaymentForm.handleSubmit(() => checkoutMutation.mutate())} className="space-y-4">
+                      <p className="text-sm text-muted-foreground">
+                        Үлдэгдэл төлбөрийг төлж check-out хийнэ
+                      </p>
+                      <FormField
+                        control={checkoutPaymentForm.control}
+                        name="amount"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Төлөх дүн (₮)</FormLabel>
+                            <FormControl>
+                              <Input type="number" {...field} data-testid="input-checkout-payment-amount" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={checkoutPaymentForm.control}
+                        name="paymentMethod"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Төлбөрийн хэлбэр</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-checkout-payment-method">
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="CASH">Бэлэн мөнгө</SelectItem>
+                                <SelectItem value="CARD">Карт</SelectItem>
+                                <SelectItem value="TRANSFER">Шилжүүлэг</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button type="button" variant="outline" onClick={() => { setCheckoutBooking(null); checkoutPaymentForm.reset(); }}
+                          data-testid="button-cancel-checkout">
+                          Цуцлах
+                        </Button>
+                        <Button type="submit" variant="destructive" disabled={checkoutMutation.isPending}
+                          data-testid="button-confirm-checkout">
+                          {checkoutMutation.isPending ? "Гарч байна..." : "Төлбөр төлж Check-out хийх"}
+                        </Button>
+                      </div>
+                    </form>
+                  </Form>
+                ) : (
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => { setCheckoutBooking(null); checkoutPaymentForm.reset(); }}
+                      data-testid="button-cancel-checkout">
+                      Цуцлах
+                    </Button>
+                    <Button variant="destructive" onClick={() => checkoutMutation.mutate()} disabled={checkoutMutation.isPending}
+                      data-testid="button-confirm-checkout">
+                      {checkoutMutation.isPending ? "Гарч байна..." : "Check-out хийх"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editBooking} onOpenChange={(open) => { if (!open) setEditBooking(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle data-testid="text-edit-booking-title">Захиалга засах</DialogTitle>
+            <DialogDescription>
+              {editBooking && (() => {
+                const guest = guestMap[editBooking.guestId];
+                const room = roomMap[editBooking.roomId];
+                return `${guest ? `${guest.lastName} ${guest.firstName}` : "—"} · Өрөө ${room?.roomNumber || "—"}`;
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit((v) => updateBookingMutation.mutate(v))} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="checkIn"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Орох огноо</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} data-testid="input-edit-booking-checkin" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="checkOut"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Гарах огноо</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} data-testid="input-edit-booking-checkout" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={editForm.control}
+                name="totalAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Нийт дүн (₮)</FormLabel>
+                    <FormControl>
+                      <Input type="number" {...field} data-testid="input-edit-booking-total" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setEditBooking(null)}
+                  data-testid="button-cancel-edit-booking">
+                  Цуцлах
+                </Button>
+                <Button type="submit" disabled={updateBookingMutation.isPending}
+                  data-testid="button-save-edit-booking">
+                  {updateBookingMutation.isPending ? "Хадгалж байна..." : "Хадгалах"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteBookingId} onOpenChange={(open) => { if (!open) setDeleteBookingId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Захиалга устгах</AlertDialogTitle>
+            <AlertDialogDescription>
+              Энэ захиалгыг устгахдаа итгэлтэй байна уу? Холбогдох төлбөр, эмчилгээний бүртгэл бүгд устгагдана.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-booking">Цуцлах</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteBookingId && deleteBookingMutation.mutate(deleteBookingId)}
+              data-testid="button-confirm-delete-booking">
+              Устгах
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={treatmentDialogOpen} onOpenChange={(open) => { if (!open) setTreatmentDialogOpen(false); }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-auto">

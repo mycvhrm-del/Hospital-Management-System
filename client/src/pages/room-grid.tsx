@@ -89,7 +89,7 @@ const quickBookingSchema = z.object({
 
 type QuickBookingValues = z.infer<typeof quickBookingSchema>;
 
-function RoomCard({ room, onQuickBook, onPayment }: { room: RoomGridItem; onQuickBook: (room: RoomGridItem) => void; onPayment: (room: RoomGridItem) => void }) {
+function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGridItem; onQuickBook: (room: RoomGridItem) => void; onPayment: (room: RoomGridItem) => void; onCheckout: (room: RoomGridItem) => void }) {
   const { toast } = useToast();
   const config = statusConfig[room.status];
   const StatusIcon = config.icon;
@@ -101,19 +101,6 @@ function RoomCard({ room, onQuickBook, onPayment }: { room: RoomGridItem; onQuic
       queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
       queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
       toast({ title: "Амжилттай", description: `${room.roomNumber} өрөөнд check-in хийгдлээ` });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
-    },
-  });
-
-  const checkoutMutation = useMutation({
-    mutationFn: () => apiRequest("PATCH", `/api/bookings/${room.activeBooking!.id}/status`, { status: "CHECKED_OUT" }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
-      toast({ title: "Амжилттай", description: `${room.roomNumber} өрөөнөөс check-out хийгдлээ` });
     },
     onError: (err: Error) => {
       toast({ title: "Алдаа", description: err.message, variant: "destructive" });
@@ -238,13 +225,12 @@ function RoomCard({ room, onQuickBook, onPayment }: { room: RoomGridItem; onQuic
                 <Button
                   size="sm"
                   variant="destructive"
-                  onClick={() => checkoutMutation.mutate()}
-                  disabled={checkoutMutation.isPending || balance > 0}
+                  onClick={() => onCheckout(room)}
                   className="w-full"
                   data-testid={`button-checkout-${room.roomNumber}`}
                 >
                   <LogOut className="h-3.5 w-3.5 mr-2" />
-                  {checkoutMutation.isPending ? "Гарч байна..." : balance > 0 ? `Төлбөр төлөгдөөгүй (${balance.toLocaleString()}₮)` : "Check-out хийх"}
+                  {balance > 0 ? `Check-out (${balance.toLocaleString()}₮ үлдэгдэл)` : "Check-out хийх"}
                 </Button>
                 <Button
                   size="sm"
@@ -364,6 +350,7 @@ export default function RoomGridPage() {
   const [selectedFloor, setSelectedFloor] = useState<string>("all");
   const [quickBookRoom, setQuickBookRoom] = useState<RoomGridItem | null>(null);
   const [paymentRoom, setPaymentRoom] = useState<RoomGridItem | null>(null);
+  const [checkoutRoom, setCheckoutRoom] = useState<RoomGridItem | null>(null);
 
   const { data: roomGrid = [], isLoading } = useQuery<RoomGridItem[]>({
     queryKey: ["/api/room-grid"],
@@ -461,6 +448,51 @@ export default function RoomGridPage() {
     paymentMutation.mutate(values);
   };
 
+  const checkoutPaymentForm = useForm<PaymentValues>({
+    resolver: zodResolver(paymentSchema),
+    defaultValues: { amount: "", type: "FINAL", paymentMethod: "CASH" },
+  });
+
+  const checkoutMutation = useMutation({
+    mutationFn: async () => {
+      const room = checkoutRoom!;
+      const booking = room.activeBooking!;
+      const balance = Number(booking.totalAmount) - Number(booking.depositPaid);
+      const paymentAmount = Number(checkoutPaymentForm.getValues("amount"));
+      if (balance > 0) {
+        if (paymentAmount < balance) {
+          throw new Error(`Үлдэгдэл дүн (${balance.toLocaleString()}₮)-ээс бага төлбөр хийх боломжгүй`);
+        }
+        await apiRequest("POST", "/api/transactions", {
+          bookingId: booking.id,
+          amount: String(balance),
+          type: checkoutPaymentForm.getValues("type"),
+          paymentMethod: checkoutPaymentForm.getValues("paymentMethod"),
+        });
+      }
+      return apiRequest("PATCH", `/api/bookings/${booking.id}/status`, { status: "CHECKED_OUT" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      setCheckoutRoom(null);
+      checkoutPaymentForm.reset();
+      toast({ title: "Амжилттай", description: `Check-out амжилттай хийгдлээ` });
+    },
+    onError: (err: Error) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const openCheckout = (room: RoomGridItem) => {
+    setCheckoutRoom(room);
+    const balance = Number(room.activeBooking!.totalAmount) - Number(room.activeBooking!.depositPaid);
+    checkoutPaymentForm.reset({ amount: String(balance), type: "FINAL", paymentMethod: "CASH" });
+  };
+
   const today = new Date().toISOString().split("T")[0];
 
   return (
@@ -531,7 +563,7 @@ export default function RoomGridPage() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
           {sortedRooms.map((room) => (
-            <RoomCard key={room.id} room={room} onQuickBook={setQuickBookRoom} onPayment={setPaymentRoom} />
+            <RoomCard key={room.id} room={room} onQuickBook={setQuickBookRoom} onPayment={setPaymentRoom} onCheckout={openCheckout} />
           ))}
         </div>
       )}
@@ -715,6 +747,91 @@ export default function RoomGridPage() {
               </div>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!checkoutRoom} onOpenChange={(open) => { if (!open) { setCheckoutRoom(null); checkoutPaymentForm.reset(); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle data-testid="text-checkout-title">
+              Check-out - Өрөө {checkoutRoom?.roomNumber}
+            </DialogTitle>
+            <DialogDescription>
+              {checkoutRoom?.guest && `${checkoutRoom.guest.lastName} ${checkoutRoom.guest.firstName}`}
+              {checkoutRoom?.activeBooking && ` | Нийт: ${Number(checkoutRoom.activeBooking.totalAmount).toLocaleString()}₮ | Төлсөн: ${Number(checkoutRoom.activeBooking.depositPaid).toLocaleString()}₮`}
+            </DialogDescription>
+          </DialogHeader>
+          {checkoutRoom?.activeBooking && (() => {
+            const balance = Number(checkoutRoom.activeBooking.totalAmount) - Number(checkoutRoom.activeBooking.depositPaid);
+            if (balance <= 0) {
+              return (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">Бүх төлбөр төлөгдсөн. Check-out хийх үү?</p>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => { setCheckoutRoom(null); checkoutPaymentForm.reset(); }} data-testid="button-cancel-checkout">
+                      Цуцлах
+                    </Button>
+                    <Button variant="destructive" onClick={() => checkoutMutation.mutate()} disabled={checkoutMutation.isPending} data-testid="button-confirm-checkout">
+                      {checkoutMutation.isPending ? "Гарч байна..." : "Check-out хийх"}
+                    </Button>
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <Form {...checkoutPaymentForm}>
+                <form onSubmit={checkoutPaymentForm.handleSubmit(() => checkoutMutation.mutate())} className="space-y-4">
+                  <div className="rounded-md border p-3 bg-amber-50 dark:bg-amber-950 text-sm">
+                    <p className="font-medium text-amber-800 dark:text-amber-200">Үлдэгдэл төлбөр: {balance.toLocaleString()}₮</p>
+                    <p className="text-amber-600 dark:text-amber-400 text-xs mt-1">Check-out хийхийн өмнө үлдэгдэл төлбөрийг төлнө үү</p>
+                  </div>
+                  <FormField
+                    control={checkoutPaymentForm.control}
+                    name="amount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Төлбөрийн дүн (₮)</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} data-testid="input-checkout-amount" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={checkoutPaymentForm.control}
+                    name="paymentMethod"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Төлбөрийн хэлбэр</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-checkout-payment-method">
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="CASH">Бэлэн мөнгө</SelectItem>
+                            <SelectItem value="CARD">Карт</SelectItem>
+                            <SelectItem value="TRANSFER">Шилжүүлэг</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" onClick={() => { setCheckoutRoom(null); checkoutPaymentForm.reset(); }} data-testid="button-cancel-checkout">
+                      Цуцлах
+                    </Button>
+                    <Button type="submit" variant="destructive" disabled={checkoutMutation.isPending} data-testid="button-confirm-checkout">
+                      {checkoutMutation.isPending ? "Гарч байна..." : "Төлбөр төлж Check-out хийх"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

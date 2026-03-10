@@ -58,6 +58,7 @@ export interface IStorage {
   createBooking(data: any): Promise<Booking>;
   updateBooking(id: string, data: Partial<any>): Promise<Booking | undefined>;
   updateBookingStatus(id: string, status: string): Promise<Booking | undefined>;
+  deleteBooking(id: string): Promise<boolean>;
   createTransaction(data: any): Promise<Transaction>;
   getTransactionsByBookingIds(bookingIds: string[]): Promise<Transaction[]>;
 
@@ -266,6 +267,14 @@ export class DatabaseStorage implements IStorage {
   async updateBookingStatus(id: string, status: string): Promise<Booking | undefined> {
     const [booking] = await db.update(bookings).set({ status: status as any }).where(eq(bookings.id, id)).returning();
     return booking;
+  }
+
+  async deleteBooking(id: string): Promise<boolean> {
+    await db.delete(bookingServices).where(eq(bookingServices.bookingId, id));
+    await db.delete(transactions).where(eq(transactions.bookingId, id));
+    await db.delete(treatmentPlans).where(eq(treatmentPlans.bookingId, id));
+    const result = await db.delete(bookings).where(eq(bookings.id, id)).returning();
+    return result.length > 0;
   }
 
   async createTransaction(data: any): Promise<Transaction> {

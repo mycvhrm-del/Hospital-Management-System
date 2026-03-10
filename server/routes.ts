@@ -358,6 +358,33 @@ export async function registerRoutes(
     res.json(booking);
   });
 
+  app.patch("/api/bookings/:id", async (req, res) => {
+    const booking = await storage.getBooking(req.params.id);
+    if (!booking) return res.status(404).json({ message: "Booking not found" });
+    if (booking.status === "CHECKED_OUT" || booking.status === "CANCELLED") {
+      return res.status(400).json({ message: "Дууссан эсвэл цуцлагдсан захиалга засах боломжгүй" });
+    }
+    const updates: any = {};
+    if (req.body.checkIn) updates.checkIn = new Date(req.body.checkIn);
+    if (req.body.checkOut) updates.checkOut = new Date(req.body.checkOut);
+    if (req.body.totalAmount !== undefined) updates.totalAmount = String(req.body.totalAmount);
+    const updated = await storage.updateBooking(req.params.id, updates);
+    res.json(updated);
+  });
+
+  app.delete("/api/bookings/:id", async (req, res) => {
+    const booking = await storage.getBooking(req.params.id);
+    if (!booking) return res.status(404).json({ message: "Booking not found" });
+    if (booking.status === "CHECKED_IN" || booking.status === "OCCUPIED") {
+      return res.status(400).json({ message: "Бүртгэлтэй захиалга устгах боломжгүй" });
+    }
+    if (booking.status !== "CHECKED_OUT" && booking.status !== "CANCELLED") {
+      await storage.updateRoom(booking.roomId, { status: "AVAILABLE" });
+    }
+    await storage.deleteBooking(req.params.id);
+    res.json({ success: true });
+  });
+
   app.post("/api/transactions", async (req, res) => {
     const parsed = insertTransactionSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
