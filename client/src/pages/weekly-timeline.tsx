@@ -597,7 +597,7 @@ function BookingCell({
             </div>
             <div className="flex items-center gap-1.5">
               <LogOut className="h-3 w-3" />
-              <span>Буцах: {new Date(booking.checkOut).toLocaleDateString("mn-MN")}</span>
+              <span>{booking.status === "CHECKED_OUT" ? "Гарсан" : "Буцах"}: {new Date(booking.checkOut).toLocaleDateString("mn-MN")}</span>
             </div>
           </div>
 

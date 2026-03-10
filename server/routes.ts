@@ -716,11 +716,25 @@ export async function registerRoutes(
     const categoryMap = Object.fromEntries(categories.map(c => [c.id, c]));
     const allBookings = await storage.getAllBookings();
 
+    const now = new Date();
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
     const weekBookings = allBookings.filter(b => {
       if (b.status === "CANCELLED") return false;
       const ci = new Date(b.checkIn);
-      const co = new Date(b.checkOut);
+      let co = new Date(b.checkOut);
+      if (b.status === "CHECKED_OUT" && co > todayEnd) {
+        co = todayEnd;
+      }
       return ci < end && co > start;
+    }).map(b => {
+      if (b.status === "CHECKED_OUT") {
+        const co = new Date(b.checkOut);
+        if (co > todayEnd) {
+          return { ...b, checkOut: todayEnd };
+        }
+      }
+      return b;
     });
 
     const guestIds = Array.from(new Set(weekBookings.map(b => b.guestId)));
