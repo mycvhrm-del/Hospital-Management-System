@@ -305,11 +305,17 @@ export default function BookingsPage() {
         paymentMethod: data.paymentMethod,
       }),
     onSuccess: () => {
+      const wasPayingBooking = paymentBooking;
       queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
       setPaymentBooking(null);
       paymentForm.reset();
-      toast({ title: "Амжилттай", description: "Төлбөр бүртгэгдлээ" });
+      if (wasPayingBooking && wasPayingBooking.status === "PENDING") {
+        setStatusFilter("ALL");
+        toast({ title: "Амжилттай", description: "Төлбөр бүртгэгдлээ. Захиалга баталгаажлаа." });
+      } else {
+        toast({ title: "Амжилттай", description: "Төлбөр бүртгэгдлээ" });
+      }
     },
     onError: (err: Error) => {
       toast({ title: "Алдаа", description: err.message, variant: "destructive" });
