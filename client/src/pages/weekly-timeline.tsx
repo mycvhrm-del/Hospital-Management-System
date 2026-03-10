@@ -311,6 +311,7 @@ export default function WeeklyTimelinePage() {
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500/80" /> Бүртгэлтэй</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-400/80" /> Баталгаажсан</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-amber-400/80" /> Хүлээгдэж буй</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-slate-400/80" /> Цэвэрлэгээ</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm border border-dashed" /> Сул (дарж захиалах)</span>
       </div>
 
@@ -457,17 +458,32 @@ function TimelineRow({
     return { guestCount, capacity };
   }, [room]);
 
+  const roomStatusConfig: Record<string, { dot: string; label: string }> = {
+    AVAILABLE: { dot: "bg-green-500", label: "Сул" },
+    OCCUPIED: { dot: "bg-red-500", label: "Дүүрсэн" },
+    PENDING: { dot: "bg-amber-400", label: "Хүлээгдэж буй" },
+    CLEANING: { dot: "bg-slate-400", label: "Цэвэрлэгээ" },
+  };
+  const rs = roomStatusConfig[room.status] || roomStatusConfig.AVAILABLE;
+
   return (
-    <tr data-testid={`timeline-row-${room.roomNumber}`}>
-      <td className="sticky left-0 z-10 bg-background border-b border-r px-3 py-2">
+    <tr data-testid={`timeline-row-${room.roomNumber}`} className={room.status === "CLEANING" ? "bg-slate-50 dark:bg-slate-900/30" : ""}>
+      <td className={`sticky left-0 z-10 border-b border-r px-3 py-2 ${room.status === "CLEANING" ? "bg-slate-50 dark:bg-slate-900/30" : "bg-background"}`}>
         <div className="flex items-center justify-between gap-1">
-          <div>
+          <div className="flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${rs.dot}`} title={rs.label} data-testid={`dot-room-status-${room.roomNumber}`} />
             <span className="font-medium text-sm" data-testid={`text-room-number-${room.roomNumber}`}>{room.roomNumber}</span>
-            <span className="text-xs text-muted-foreground ml-1.5">{room.category?.name || ""}</span>
+            <span className="text-xs text-muted-foreground">{room.category?.name || ""}</span>
           </div>
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal" data-testid={`badge-occupancy-${room.roomNumber}`}>
-            {occupancy.guestCount}/{occupancy.capacity}
-          </Badge>
+          {room.status === "CLEANING" ? (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600" data-testid={`badge-cleaning-${room.roomNumber}`}>
+              Цэвэрлэгээ
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal" data-testid={`badge-occupancy-${room.roomNumber}`}>
+              {occupancy.guestCount}/{occupancy.capacity}
+            </Badge>
+          )}
         </div>
       </td>
       {days.map(day => {
