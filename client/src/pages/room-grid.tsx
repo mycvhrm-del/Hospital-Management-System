@@ -89,9 +89,18 @@ const quickBookingSchema = z.object({
 
 type QuickBookingValues = z.infer<typeof quickBookingSchema>;
 
+const confirmedConfig = {
+  label: "Баталгаажсан",
+  bgClass: "bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800",
+  dotClass: "bg-blue-500",
+  textClass: "text-blue-700 dark:text-blue-400",
+  icon: CheckCircle,
+};
+
 function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGridItem; onQuickBook: (room: RoomGridItem) => void; onPayment: (room: RoomGridItem) => void; onCheckout: (room: RoomGridItem) => void }) {
   const { toast } = useToast();
-  const config = statusConfig[room.status];
+  const isConfirmedPending = room.status === "PENDING" && room.activeBooking?.status === "CONFIRMED";
+  const config = isConfirmedPending ? confirmedConfig : statusConfig[room.status];
   const StatusIcon = config.icon;
 
   const checkinMutation = useMutation({
@@ -151,11 +160,6 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
               </span>
               {room.guest.isVip && <Crown className="h-3 w-3 text-amber-500" />}
             </div>
-          )}
-          {room.activeBooking && room.status === "PENDING" && (
-            <span className={`text-[10px] font-medium ${room.activeBooking.status === "CONFIRMED" ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
-              {room.activeBooking.status === "CONFIRMED" ? "✓ Баталгаажсан" : "Хүлээгдэж буй"}
-            </span>
           )}
         </button>
       </PopoverTrigger>
@@ -388,7 +392,8 @@ export default function RoomGridPage() {
     total: roomGrid.length,
     available: roomGrid.filter((r) => r.status === "AVAILABLE").length,
     occupied: roomGrid.filter((r) => r.status === "OCCUPIED").length,
-    pending: roomGrid.filter((r) => r.status === "PENDING").length,
+    pending: roomGrid.filter((r) => r.status === "PENDING" && r.activeBooking?.status !== "CONFIRMED").length,
+    confirmed: roomGrid.filter((r) => r.status === "PENDING" && r.activeBooking?.status === "CONFIRMED").length,
     cleaning: roomGrid.filter((r) => r.status === "CLEANING").length,
   };
 
@@ -523,6 +528,10 @@ export default function RoomGridPage() {
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded-full bg-amber-500" />
           <span className="text-muted-foreground">Хүлээгдэж буй ({stats.pending})</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="h-3 w-3 rounded-full bg-blue-500" />
+          <span className="text-muted-foreground">Баталгаажсан ({stats.confirmed})</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded-full bg-slate-400" />
