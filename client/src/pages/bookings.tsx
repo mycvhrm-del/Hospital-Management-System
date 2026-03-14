@@ -102,10 +102,28 @@ export default function BookingsPage() {
   const [checkoutBooking, setCheckoutBooking] = useState<Booking | null>(null);
   const [extendBooking, setExtendBooking] = useState<Booking | null>(null);
   const [extendDate, setExtendDate] = useState("");
+  const [page, setPage] = useState(1);
+  const BOOKING_LIMIT = 50;
 
-  const { data: allBookings = [], isLoading } = useQuery<Booking[]>({
-    queryKey: ["/api/bookings"],
+  const { data: activeStays = [] } = useQuery<Booking[]>({
+    queryKey: ["/api/bookings", "active-stays"],
+    queryFn: () => fetch("/api/bookings/active-stays").then(r => r.json()),
   });
+
+  type BookingsPage = { data: Booking[]; total: number; totalPages: number };
+  const { data: bookingsResult, isLoading } = useQuery<BookingsPage>({
+    queryKey: ["/api/bookings", { page, status: statusFilter, search: searchQuery }],
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: String(page), limit: String(BOOKING_LIMIT) });
+      if (statusFilter !== "ALL") params.set("status", statusFilter);
+      if (searchQuery) params.set("search", searchQuery);
+      const res = await fetch(`/api/bookings?${params}`);
+      return res.json();
+    },
+  });
+  const paginatedBookings = bookingsResult?.data ?? [];
+  const totalPages = bookingsResult?.totalPages ?? 1;
+  const totalCount = bookingsResult?.total ?? 0;
 
   const { data: allGuests = [], isLoading: guestsLoading } = useQuery<Guest[]>({
     queryKey: ["/api/guests"],
@@ -459,27 +477,6 @@ export default function BookingsPage() {
     },
   });
 
-  const bookingsOnly = allBookings.filter(b => b.status !== "CHECKED_IN" && b.status !== "CHECKED_OUT" && b.status !== "EXTENDED");
-  const activeStays = allBookings.filter(b => b.status === "CHECKED_IN" || b.status === "EXTENDED");
-
-  const filtered = bookingsOnly.filter(b => {
-    if (statusFilter !== "ALL" && b.status !== statusFilter) return false;
-    if (searchQuery) {
-      const guest = guestMap[b.guestId];
-      const room = roomMap[b.roomId];
-      const q = searchQuery.toLowerCase();
-      const guestName = guest ? `${guest.lastName} ${guest.firstName}`.toLowerCase() : "";
-      const roomNum = room ? room.roomNumber.toLowerCase() : "";
-      return guestName.includes(q) || roomNum.includes(q);
-    }
-    return true;
-  });
-
-  const sorted = [...filtered].sort((a, b) => {
-    if (a.status === "NO_SHOW" && b.status !== "NO_SHOW") return -1;
-    if (b.status === "NO_SHOW" && a.status !== "NO_SHOW") return 1;
-    return new Date(b.checkIn).getTime() - new Date(a.checkIn).getTime();
-  });
   const today = new Date().toISOString().split("T")[0];
 
   const canEdit = (status: string) => status !== "CHECKED_OUT" && status !== "CANCELLED" && status !== "NO_SHOW";
@@ -583,20 +580,20 @@ export default function BookingsPage() {
           <Input
             placeholder="Зочин, өрөөгөөр хайх..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
             className="pl-10"
             data-testid="input-booking-search"
           />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
           <SelectTrigger className="w-[180px]" data-testid="select-booking-status-filter">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">Бүгд ({bookingsOnly.length})</SelectItem>
+            <SelectItem value="ALL">Бүгд ({totalCount})</SelectItem>
             <SelectItem value="PENDING">Хүлээгдэж буй</SelectItem>
             <SelectItem value="CONFIRMED">Баталгаажсан</SelectItem>
-            <SelectItem value="NO_SHOW">⚠️ Ирээгүй ({bookingsOnly.filter(b => b.status === "NO_SHOW").length})</SelectItem>
+            <SelectItem value="NO_SHOW">⚠️ Ирээгүй</SelectItem>
             <SelectItem value="CANCELLED">Цуцлагдсан</SelectItem>
           </SelectContent>
         </Select>
@@ -604,7 +601,7 @@ export default function BookingsPage() {
 
       {isLoading ? (
         <div className="text-sm text-muted-foreground">Ачаалж байна...</div>
-      ) : sorted.length === 0 ? (
+      ) : paginatedBookings.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <CalendarDays className="h-10 w-10 text-muted-foreground mb-3" />
@@ -630,7 +627,7 @@ export default function BookingsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sorted.map((booking) => {
+              {paginatedBookings.map((booking) => {
                 const guest = guestMap[booking.guestId];
                 const room = roomMap[booking.roomId];
                 const category = room ? catMap[room.categoryId] : null;
@@ -757,6 +754,32 @@ export default function BookingsPage() {
               })}
             </TableBody>
           </Table>
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>Нийт {totalCount} захиалга · {page}/{totalPages} хуудас</span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              data-testid="button-bookings-prev"
+            >
+              Өмнөх
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              data-testid="button-bookings-next"
+            >
+              Дараах
+            </Button>
+          </div>
         </div>
       )}
 

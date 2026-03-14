@@ -197,17 +197,22 @@ export async function registerRoutes(
   });
 
   app.get("/api/guests", async (req, res) => {
-    const allGuests = await storage.getGuests();
-    const search = (req.query.search as string || "").toLowerCase().trim();
+    const search = (req.query.search as string || "").trim();
+    const pageParam = req.query.page as string;
+
+    if (pageParam) {
+      const page = Math.max(1, parseInt(pageParam) || 1);
+      const limit = Math.min(200, parseInt(req.query.limit as string) || 50);
+      const result = await storage.getGuestsPaginated(page, limit, search || undefined);
+      return res.json(result);
+    }
+
     if (search) {
-      const filtered = allGuests.filter(g =>
-        g.phone.toLowerCase().includes(search) ||
-        g.idNumber.toLowerCase().includes(search) ||
-        g.firstName.toLowerCase().includes(search) ||
-        g.lastName.toLowerCase().includes(search)
-      );
+      const filtered = await storage.searchGuests(search, 100);
       return res.json(filtered);
     }
+
+    const allGuests = await storage.getGuests();
     res.json(allGuests);
   });
 
@@ -272,7 +277,37 @@ export async function registerRoutes(
     res.json(familyBookings);
   });
 
-  app.get("/api/bookings", async (_req, res) => {
+  app.get("/api/bookings/active-stays", async (req, res) => {
+    const includeCheckouts = req.query.includeCheckouts === "true";
+    const activeBookings = await storage.getActiveStayBookings(includeCheckouts);
+    res.json(activeBookings);
+  });
+
+  app.get("/api/bookings", async (req, res) => {
+    const pageParam = req.query.page as string;
+
+    if (pageParam) {
+      const page = Math.max(1, parseInt(pageParam) || 1);
+      const limit = Math.min(200, parseInt(req.query.limit as string) || 50);
+      const status = req.query.status as string | undefined;
+      const search = (req.query.search as string || "").trim();
+
+      let guestIds: string[] | undefined;
+      let roomIds: string[] | undefined;
+      if (search) {
+        const [matchingGuests, matchingRooms] = await Promise.all([
+          storage.searchGuests(search, 200),
+          storage.searchRooms(search),
+        ]);
+        guestIds = matchingGuests.map(g => g.id);
+        roomIds = matchingRooms.map(r => r.id);
+      }
+
+      const notStatuses = ["CHECKED_IN", "EXTENDED", "DUE_OUT"];
+      const result = await storage.getBookingsPaginated(page, limit, status, guestIds, roomIds, notStatuses);
+      return res.json(result);
+    }
+
     const allBookings = await storage.getAllBookings();
     res.json(allBookings);
   });
@@ -290,22 +325,22 @@ export async function registerRoutes(
   });
 
   app.get("/api/room-grid", async (_req, res) => {
-    const allRooms = await storage.getRooms();
-    const categories = await storage.getRoomCategories();
-    const allGuests = await storage.getGuests();
+    const [allRooms, categories, activeBookingsMap, allGuests] = await Promise.all([
+      storage.getRooms(),
+      storage.getRoomCategories(),
+      storage.getActiveBookingsForAllRooms(),
+      storage.getGuests(),
+    ]);
     const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
     const guestMap = Object.fromEntries(allGuests.map(g => [g.id, g]));
 
-    const enriched = await Promise.all(allRooms.map(async (room) => {
-      const activeBooking = await storage.getActiveBookingForRoom(room.id);
-      let guest = null;
-      if (activeBooking) {
-        guest = guestMap[activeBooking.guestId] || null;
-      }
+    const enriched = allRooms.map((room) => {
+      const activeBooking = activeBookingsMap[room.id] || null;
+      const guest = activeBooking ? guestMap[activeBooking.guestId] || null : null;
       return {
         ...room,
         category: catMap[room.categoryId] || null,
-        activeBooking: activeBooking || null,
+        activeBooking,
         guest: guest ? {
           id: guest.id,
           firstName: guest.firstName,
@@ -315,7 +350,7 @@ export async function registerRoutes(
           hasMedicalHistory: !!guest.medicalHistory,
         } : null,
       };
-    }));
+    });
 
     res.json(enriched);
   });
@@ -876,35 +911,27 @@ export async function registerRoutes(
     }
     const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    const allRooms = await storage.getRooms();
-    const categories = await storage.getRoomCategories();
+    const [allRooms, categories, weekBookings] = await Promise.all([
+      storage.getRooms(),
+      storage.getRoomCategories(),
+      storage.getBookingsByDateRange(start, end),
+    ]);
     const categoryMap = Object.fromEntries(categories.map(c => [c.id, c]));
-    const allBookings = await storage.getAllBookings();
-
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-
-    const weekBookings = allBookings.filter(b => {
-      if (b.status === "CANCELLED" || b.status === "CHECKED_OUT") return false;
-      const ci = new Date(b.checkIn);
-      const co = new Date(b.checkOut);
-      return ci < end && co > start;
-    });
 
     const guestIds = Array.from(new Set(weekBookings.map(b => b.guestId)));
-    const allGuests = await storage.getGuests();
-    const guestMap = Object.fromEntries(allGuests.filter(g => guestIds.includes(g.id)).map(g => [g.id, g]));
+    const allGuests = guestIds.length > 0 ? await storage.getGuests() : [];
+    const weekGuestIds = new Set(guestIds);
+    const guestMap = Object.fromEntries(allGuests.filter(g => weekGuestIds.has(g.id)).map(g => [g.id, g]));
 
-    const familyBookings: Record<string, typeof weekBookings> = {};
+    const familyBookingsByRoom: Record<string, typeof weekBookings> = {};
     for (const b of weekBookings) {
-      if (!familyBookings[b.roomId]) familyBookings[b.roomId] = [];
-      familyBookings[b.roomId].push(b);
+      if (!familyBookingsByRoom[b.roomId]) familyBookingsByRoom[b.roomId] = [];
+      familyBookingsByRoom[b.roomId].push(b);
     }
 
     const result = allRooms.map(room => {
       const cat = categoryMap[room.categoryId];
-      const roomBookings = familyBookings[room.id] || [];
+      const roomBookings = familyBookingsByRoom[room.id] || [];
 
       const enriched = roomBookings.map(b => {
         const guest = guestMap[b.guestId];
@@ -933,49 +960,8 @@ export async function registerRoutes(
   });
 
   app.get("/api/dashboard/stats", async (_req, res) => {
-    const allRooms = await storage.getRooms();
-    const allBookings = await storage.getAllBookings();
-
-    const availableCount = allRooms.filter(r => r.status === "AVAILABLE").length;
-    const occupiedCount = allRooms.filter(r => r.status === "OCCUPIED").length;
-    const pendingCount = allRooms.filter(r => r.status === "PENDING").length;
-    const cleaningCount = allRooms.filter(r => r.status === "CLEANING").length;
-    const cleaningInProgressCount = allRooms.filter(r => r.status === "CLEANING_IN_PROGRESS").length;
-    const inspectedCount = allRooms.filter(r => r.status === "INSPECTED").length;
-    const outOfOrderCount = allRooms.filter(r => r.status === "OUT_OF_ORDER").length;
-    const outOfServiceCount = allRooms.filter(r => r.status === "OUT_OF_SERVICE").length;
-    const dueOutCount = allRooms.filter(r => r.status === "DUE_OUT").length;
-
-    const today = new Date();
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
-
-    const bookingIds = allBookings.map(b => b.id);
-    let todayRevenue = 0;
-    if (bookingIds.length > 0) {
-      const allTxns = await storage.getTransactionsByBookingIds(bookingIds);
-      todayRevenue = allTxns
-        .filter(t => new Date(t.createdAt) >= startOfDay && new Date(t.createdAt) < endOfDay)
-        .reduce((sum, t) => sum + Number(t.amount), 0);
-    }
-
-    res.json({
-      rooms: {
-        total: allRooms.length,
-        available: availableCount,
-        occupied: occupiedCount,
-        pending: pendingCount,
-        cleaning: cleaningCount,
-        cleaningInProgress: cleaningInProgressCount,
-        inspected: inspectedCount,
-        outOfOrder: outOfOrderCount,
-        outOfService: outOfServiceCount,
-        dueOut: dueOutCount,
-      },
-      todayRevenue,
-      totalBookings: allBookings.length,
-      activeBookings: allBookings.filter(b => b.status === "CHECKED_IN" || b.status === "EXTENDED").length,
-    });
+    const stats = await storage.getDashboardStats();
+    res.json(stats);
   });
 
   app.get("/api/staff", async (_req, res) => {
@@ -1065,17 +1051,15 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Invalid date" });
     }
 
-    const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+    const dayPlans = await storage.getTreatmentPlansByDate(date);
 
-    const allPlans = await storage.getAllTreatmentPlans();
-    const dayPlans = allPlans.filter(p => {
-      const t = new Date(p.scheduleTime);
-      return t >= dayStart && t < dayEnd;
-    });
-
-    const allBookings = await storage.getAllBookings();
-    const bookingMap = Object.fromEntries(allBookings.map(b => [b.id, b]));
+    const bookingIds = Array.from(new Set(dayPlans.map(p => p.bookingId)));
+    const planBookings = bookingIds.length > 0
+      ? await Promise.all(bookingIds.map(id => storage.getBooking(id)))
+      : [];
+    const bookingMap = Object.fromEntries(
+      planBookings.filter(Boolean).map(b => [b!.id, b!])
+    );
     const allGuests = await storage.getGuests();
     const guestMap = Object.fromEntries(allGuests.map(g => [g.id, g]));
     const allRooms = await storage.getRooms();
@@ -1101,8 +1085,7 @@ export async function registerRoutes(
 
   app.get("/api/guests/:id/treatment-plans", async (req, res) => {
     const guestId = req.params.id;
-    const allBookings = await storage.getAllBookings();
-    const guestBookings = allBookings.filter(b => b.guestId === guestId);
+    const guestBookings = await storage.getGuestBookings(guestId);
 
     const allStaff = await storage.getStaffMembers();
     const staffMap = Object.fromEntries(allStaff.map(s => [s.id, s]));

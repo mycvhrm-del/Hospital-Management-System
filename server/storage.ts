@@ -1,4 +1,4 @@
-import { eq, inArray, and, or, ne, lt, gt, sql } from "drizzle-orm";
+import { eq, inArray, and, or, ne, lt, gt, gte, lte, sql, ilike, count, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
@@ -113,6 +113,25 @@ export interface IStorage {
   getSetting(key: string): Promise<Setting | undefined>;
   getAllSettings(): Promise<Setting[]>;
   upsertSetting(key: string, value: string): Promise<Setting>;
+
+  getActiveBookingsForAllRooms(): Promise<Record<string, Booking>>;
+  getDashboardStats(): Promise<{
+    rooms: {
+      total: number; available: number; occupied: number; pending: number;
+      cleaning: number; cleaningInProgress: number; inspected: number;
+      outOfOrder: number; outOfService: number; dueOut: number;
+    };
+    todayRevenue: number;
+    totalBookings: number;
+    activeBookings: number;
+  }>;
+  getBookingsByDateRange(start: Date, end: Date): Promise<Booking[]>;
+  getTreatmentPlansByDate(date: Date): Promise<TreatmentPlan[]>;
+  getActiveStayBookings(includeRecentCheckouts?: boolean): Promise<Booking[]>;
+  getBookingsPaginated(page: number, limit: number, status?: string, guestIds?: string[], roomIds?: string[], notStatuses?: string[]): Promise<{ data: Booking[]; total: number; totalPages: number }>;
+  getGuestsPaginated(page: number, limit: number, search?: string): Promise<{ data: Guest[]; total: number; totalPages: number }>;
+  searchGuests(query: string, limit?: number): Promise<Guest[]>;
+  searchRooms(query: string): Promise<Room[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -572,6 +591,185 @@ export class DatabaseStorage implements IStorage {
       .onConflictDoUpdate({ target: settings.key, set: { value } })
       .returning();
     return s;
+  }
+
+  async getActiveBookingsForAllRooms(): Promise<Record<string, Booking>> {
+    const activeBookings = await db.select().from(bookings).where(
+      or(
+        eq(bookings.status, "CONFIRMED"),
+        eq(bookings.status, "CHECKED_IN"),
+        eq(bookings.status, "EXTENDED"),
+        eq(bookings.status, "PENDING"),
+        eq(bookings.status, "NO_SHOW")
+      )
+    );
+    const map: Record<string, Booking> = {};
+    for (const b of activeBookings) {
+      if (!map[b.roomId]) map[b.roomId] = b;
+    }
+    return map;
+  }
+
+  async getDashboardStats() {
+    const allRooms = await db.select().from(rooms);
+    const roomCountsByStatus: Record<string, number> = {};
+    for (const room of allRooms) {
+      roomCountsByStatus[room.status] = (roomCountsByStatus[room.status] || 0) + 1;
+    }
+
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    const [revenueRow] = await db.select({
+      total: sql<string>`COALESCE(SUM(${transactions.amount}), 0)`
+    }).from(transactions).where(
+      and(gte(transactions.createdAt, todayStart), lt(transactions.createdAt, todayEnd))
+    );
+
+    const [totalRow] = await db.select({ total: count() }).from(bookings);
+
+    const [activeRow] = await db.select({ total: count() }).from(bookings).where(
+      or(eq(bookings.status, "CHECKED_IN"), eq(bookings.status, "EXTENDED"))
+    );
+
+    return {
+      rooms: {
+        total: allRooms.length,
+        available: roomCountsByStatus["AVAILABLE"] || 0,
+        occupied: roomCountsByStatus["OCCUPIED"] || 0,
+        pending: roomCountsByStatus["PENDING"] || 0,
+        cleaning: roomCountsByStatus["CLEANING"] || 0,
+        cleaningInProgress: roomCountsByStatus["CLEANING_IN_PROGRESS"] || 0,
+        inspected: roomCountsByStatus["INSPECTED"] || 0,
+        outOfOrder: roomCountsByStatus["OUT_OF_ORDER"] || 0,
+        outOfService: roomCountsByStatus["OUT_OF_SERVICE"] || 0,
+        dueOut: roomCountsByStatus["DUE_OUT"] || 0,
+      },
+      todayRevenue: Number(revenueRow.total),
+      totalBookings: totalRow.total,
+      activeBookings: activeRow.total,
+    };
+  }
+
+  async getBookingsByDateRange(start: Date, end: Date): Promise<Booking[]> {
+    return db.select().from(bookings).where(
+      and(
+        lt(bookings.checkIn, end),
+        gt(bookings.checkOut, start),
+        or(
+          eq(bookings.status, "CONFIRMED"),
+          eq(bookings.status, "CHECKED_IN"),
+          eq(bookings.status, "EXTENDED"),
+          eq(bookings.status, "PENDING"),
+          eq(bookings.status, "NO_SHOW"),
+          eq(bookings.status, "DUE_OUT")
+        )
+      )
+    );
+  }
+
+  async getTreatmentPlansByDate(date: Date): Promise<TreatmentPlan[]> {
+    const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+    return db.select().from(treatmentPlans).where(
+      and(gte(treatmentPlans.scheduleTime, dayStart), lt(treatmentPlans.scheduleTime, dayEnd))
+    );
+  }
+
+  async getActiveStayBookings(includeRecentCheckouts = false): Promise<Booking[]> {
+    if (!includeRecentCheckouts) {
+      return db.select().from(bookings).where(
+        or(
+          eq(bookings.status, "CHECKED_IN"),
+          eq(bookings.status, "EXTENDED"),
+          eq(bookings.status, "DUE_OUT")
+        )
+      );
+    }
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    return db.select().from(bookings).where(
+      or(
+        eq(bookings.status, "CHECKED_IN"),
+        eq(bookings.status, "EXTENDED"),
+        eq(bookings.status, "DUE_OUT"),
+        and(eq(bookings.status, "CHECKED_OUT"), gte(bookings.checkOut, thirtyDaysAgo))
+      )
+    );
+  }
+
+  async getBookingsPaginated(page: number, limit: number, status?: string, guestIds?: string[], roomIds?: string[], notStatuses?: string[]): Promise<{ data: Booking[]; total: number; totalPages: number }> {
+    const hasGuestFilter = guestIds !== undefined;
+    const hasRoomFilter = roomIds !== undefined;
+    const noSearchResults = (hasGuestFilter && guestIds!.length === 0) && (hasRoomFilter && roomIds!.length === 0);
+    if (noSearchResults) {
+      return { data: [], total: 0, totalPages: 0 };
+    }
+
+    const conditions = [];
+    if (status && status !== "ALL") {
+      conditions.push(eq(bookings.status, status as any));
+    }
+    if (notStatuses && notStatuses.length > 0) {
+      for (const ns of notStatuses) {
+        conditions.push(ne(bookings.status, ns as any));
+      }
+    }
+
+    const searchParts = [];
+    if (guestIds && guestIds.length > 0) searchParts.push(inArray(bookings.guestId, guestIds));
+    if (roomIds && roomIds.length > 0) searchParts.push(inArray(bookings.roomId, roomIds));
+    if (searchParts.length === 1) conditions.push(searchParts[0]);
+    else if (searchParts.length > 1) conditions.push(or(...searchParts)!);
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const offset = (page - 1) * limit;
+
+    const [{ total }] = await db.select({ total: count() }).from(bookings).where(whereClause);
+    const data = await db.select().from(bookings)
+      .where(whereClause)
+      .orderBy(desc(bookings.checkIn))
+      .limit(limit)
+      .offset(offset);
+
+    return { data, total, totalPages: Math.ceil(total / limit) };
+  }
+
+  async getGuestsPaginated(page: number, limit: number, search?: string): Promise<{ data: Guest[]; total: number; totalPages: number }> {
+    const whereClause = search
+      ? or(
+          ilike(guests.firstName, `%${search}%`),
+          ilike(guests.lastName, `%${search}%`),
+          ilike(guests.phone, `%${search}%`),
+          ilike(guests.idNumber, `%${search}%`)
+        )
+      : undefined;
+
+    const offset = (page - 1) * limit;
+    const [{ total }] = await db.select({ total: count() }).from(guests).where(whereClause);
+    const data = await db.select().from(guests)
+      .where(whereClause)
+      .orderBy(desc(guests.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return { data, total, totalPages: Math.ceil(total / limit) };
+  }
+
+  async searchGuests(query: string, limit: number = 50): Promise<Guest[]> {
+    const q = `%${query}%`;
+    return db.select().from(guests).where(
+      or(
+        ilike(guests.firstName, q),
+        ilike(guests.lastName, q),
+        ilike(guests.phone, q),
+        ilike(guests.idNumber, q)
+      )
+    ).limit(limit);
+  }
+
+  async searchRooms(query: string): Promise<Room[]> {
+    return db.select().from(rooms).where(ilike(rooms.roomNumber, `%${query}%`));
   }
 }
 

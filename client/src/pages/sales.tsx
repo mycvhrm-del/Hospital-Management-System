@@ -47,8 +47,9 @@ export default function SalesPage() {
   const [paymentBooking, setPaymentBooking] = useState<Booking | null>(null);
   const [checkoutBooking, setCheckoutBooking] = useState<Booking | null>(null);
 
-  const { data: allBookings = [], isLoading } = useQuery<Booking[]>({
-    queryKey: ["/api/bookings"],
+  const { data: salesBookings = [], isLoading } = useQuery<Booking[]>({
+    queryKey: ["/api/bookings", "active-stays-with-checkouts"],
+    queryFn: () => fetch("/api/bookings/active-stays?includeCheckouts=true").then(r => r.json()),
   });
 
   const { data: allGuests = [] } = useQuery<Guest[]>({
@@ -66,10 +67,6 @@ export default function SalesPage() {
   const guestMap = Object.fromEntries(allGuests.map(g => [g.id, g]));
   const roomMap = Object.fromEntries(allRooms.map(r => [r.id, r]));
   const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
-
-  const salesBookings = allBookings.filter(b =>
-    b.status === "CHECKED_IN" || b.status === "EXTENDED" || b.status === "CHECKED_OUT"
-  );
 
   const salesBookingIds = salesBookings.map(b => b.id);
 

@@ -53,6 +53,8 @@ export default function GuestsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [familyDialogOpen, setFamilyDialogOpen] = useState(false);
   const [familyParent, setFamilyParent] = useState<Guest | null>(null);
+  const [page, setPage] = useState(1);
+  const GUEST_LIMIT = 50;
 
   const { data: allGuests = [], isLoading } = useQuery<Guest[]>({
     queryKey: ["/api/guests"],
@@ -70,6 +72,9 @@ export default function GuestsPage() {
       g.phone.includes(q)
     );
   });
+
+  const totalGuestPages = Math.max(1, Math.ceil(filtered.length / GUEST_LIMIT));
+  const pagedGuests = filtered.slice((page - 1) * GUEST_LIMIT, page * GUEST_LIMIT);
 
   const form = useForm<GuestFormValues>({
     resolver: zodResolver(guestFormSchema),
@@ -209,7 +214,7 @@ export default function GuestsPage() {
         <Input
           placeholder="Нэр, регистр, утас..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
           className="pl-9"
           data-testid="input-search-guests"
         />
@@ -250,7 +255,7 @@ export default function GuestsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((guest) => {
+              {pagedGuests.map((guest) => {
                 const parentName = getParentName(guest.parentId);
                 const familyCount = getFamilyCount(guest.id);
                 return (
@@ -327,6 +332,32 @@ export default function GuestsPage() {
               })}
             </TableBody>
           </Table>
+        </div>
+      )}
+
+      {totalGuestPages > 1 && (
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>Нийт {filtered.length} зочин · {page}/{totalGuestPages} хуудас</span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              data-testid="button-guests-prev"
+            >
+              Өмнөх
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => Math.min(totalGuestPages, p + 1))}
+              disabled={page >= totalGuestPages}
+              data-testid="button-guests-next"
+            >
+              Дараах
+            </Button>
+          </div>
         </div>
       )}
 

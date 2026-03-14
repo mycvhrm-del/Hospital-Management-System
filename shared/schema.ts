@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, decimal, boolean, timestamp, json, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, decimal, boolean, timestamp, json, pgEnum, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -48,7 +48,10 @@ export const guests = pgTable("guests", {
   loyaltyPoints: integer("loyalty_points").default(0).notNull(),
   parentId: varchar("parent_id").references((): any => guests.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("idx_guests_parent_id").on(table.parentId),
+  index("idx_guests_created_at").on(table.createdAt),
+]);
 
 export const bookings = pgTable("bookings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -60,7 +63,14 @@ export const bookings = pgTable("bookings", {
   guestCount: integer("guest_count").default(1).notNull(),
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
   depositPaid: decimal("deposit_paid", { precision: 10, scale: 2 }).default("0").notNull(),
-});
+}, (table) => [
+  index("idx_bookings_status").on(table.status),
+  index("idx_bookings_room_id").on(table.roomId),
+  index("idx_bookings_guest_id").on(table.guestId),
+  index("idx_bookings_check_in").on(table.checkIn),
+  index("idx_bookings_check_out").on(table.checkOut),
+  index("idx_bookings_status_check_in").on(table.status, table.checkIn),
+]);
 
 export const staff = pgTable("staff", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -80,7 +90,10 @@ export const treatmentPlans = pgTable("treatment_plans", {
   status: text("status").notNull(),
   notes: text("notes"),
   completedAt: timestamp("completed_at"),
-});
+}, (table) => [
+  index("idx_treatment_plans_booking_id").on(table.bookingId),
+  index("idx_treatment_plans_schedule_time").on(table.scheduleTime),
+]);
 
 export const inventory = pgTable("inventory", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -122,7 +135,10 @@ export const transactions = pgTable("transactions", {
   type: text("type").notNull(),
   paymentMethod: text("payment_method").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("idx_transactions_booking_id").on(table.bookingId),
+  index("idx_transactions_created_at").on(table.createdAt),
+]);
 
 export const serviceTypeEnum = pgEnum("service_type", ["SERVICE", "PACKAGE"]);
 
@@ -149,7 +165,9 @@ export const bookingServices = pgTable("booking_services", {
   quantity: integer("quantity").default(1).notNull(),
   unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
   totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
-});
+}, (table) => [
+  index("idx_booking_services_booking_id").on(table.bookingId),
+]);
 
 export const auditLogs = pgTable("audit_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
