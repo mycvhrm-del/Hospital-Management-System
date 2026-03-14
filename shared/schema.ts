@@ -162,7 +162,9 @@ export const auditLogs = pgTable("audit_logs", {
 export const insertStaffSchema = createInsertSchema(staff).omit({ id: true });
 export const insertRoomCategorySchema = createInsertSchema(roomCategories).omit({ id: true });
 export const insertFloorSchema = createInsertSchema(floors).omit({ id: true });
-export const insertRoomSchema = createInsertSchema(rooms).omit({ id: true });
+export const insertRoomSchema = createInsertSchema(rooms).omit({ id: true }).extend({
+  status: z.enum(["AVAILABLE", "OCCUPIED", "PENDING", "CLEANING", "CLEANING_IN_PROGRESS", "INSPECTED", "OUT_OF_ORDER", "OUT_OF_SERVICE"]).optional(),
+});
 export const insertGuestSchema = createInsertSchema(guests).omit({ id: true, createdAt: true });
 export const insertBookingSchema = createInsertSchema(bookings).omit({ id: true });
 export const insertTreatmentPlanSchema = createInsertSchema(treatmentPlans).omit({ id: true });
