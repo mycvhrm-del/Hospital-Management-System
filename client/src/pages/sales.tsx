@@ -25,17 +25,7 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 
-const statusLabels: Record<string, string> = {
-  CHECKED_IN: "Байрлаж буй",
-  EXTENDED: "Сунгасан",
-  CHECKED_OUT: "Гарсан",
-};
-
-const statusColors: Record<string, string> = {
-  CHECKED_IN: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
-  EXTENDED: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-  CHECKED_OUT: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200",
-};
+import { BOOKING_STATUS_LABELS as statusLabels, BOOKING_STATUS_BADGE_COLORS as statusColors } from "@/lib/booking-status";
 
 const paymentSchema = z.object({
   amount: z.string().min(1, "Дүн оруулна уу"),

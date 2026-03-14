@@ -30,6 +30,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BOOKING_STATUS_LABELS as statusLabels, BOOKING_STATUS_BADGE_COLORS as statusColors } from "@/lib/booking-status";
 
 const bookingFormSchema = z.object({
   guestId: z.string().min(1, "Зочин сонгоно уу"),
@@ -58,26 +59,6 @@ const paymentSchema = z.object({
 });
 
 type PaymentValues = z.infer<typeof paymentSchema>;
-
-const statusLabels: Record<string, string> = {
-  PENDING: "Хүлээгдэж буй",
-  CONFIRMED: "Баталгаажсан",
-  CHECKED_IN: "Бүртгэлтэй",
-  CHECKED_OUT: "Гарсан",
-  CANCELLED: "Цуцлагдсан",
-  NO_SHOW: "Ирээгүй",
-  EXTENDED: "Сунгасан",
-};
-
-const statusColors: Record<string, string> = {
-  PENDING: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-  CONFIRMED: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  CHECKED_IN: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  CHECKED_OUT: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
-  CANCELLED: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-  NO_SHOW: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
-  EXTENDED: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-};
 
 const newGuestSchema = z.object({
   idNumber: z.string().min(1, "Регистрийн дугаар оруулна уу"),

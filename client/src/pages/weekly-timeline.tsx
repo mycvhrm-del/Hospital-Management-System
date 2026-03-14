@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { BOOKING_STATUS_LABELS as STATUS_LABELS, BOOKING_STATUS_BAR_COLORS as STATUS_COLORS } from "@/lib/booking-status";
 
 interface TimelineGuest {
   id: string;
@@ -65,22 +66,6 @@ interface TimelineData {
 const DAYS_MN = ["Ня", "Да", "Мя", "Лх", "Пү", "Ба", "Бя"];
 const MONTHS_MN = ["1-р сар", "2-р сар", "3-р сар", "4-р сар", "5-р сар", "6-р сар",
   "7-р сар", "8-р сар", "9-р сар", "10-р сар", "11-р сар", "12-р сар"];
-
-const STATUS_COLORS: Record<string, string> = {
-  PENDING: "bg-amber-400/80",
-  CONFIRMED: "bg-blue-400/80",
-  CHECKED_IN: "bg-emerald-500/80",
-  EXTENDED: "bg-purple-500/80",
-  NO_SHOW: "bg-orange-500/80",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: "Хүлээгдэж буй",
-  CONFIRMED: "Баталгаажсан",
-  CHECKED_IN: "Дүүрсэн",
-  EXTENDED: "Сунгасан",
-  NO_SHOW: "Ирээгүй",
-};
 
 function getWeekStart(date: Date): Date {
   const d = new Date(date);
