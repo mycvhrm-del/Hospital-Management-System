@@ -15,6 +15,7 @@ interface DashboardStats {
     inspected: number;
     outOfOrder: number;
     outOfService: number;
+    dueOut: number;
   };
   todayRevenue: number;
   totalBookings: number;
@@ -30,6 +31,7 @@ const STATS_KEY_MAP: { statsKey: keyof DashboardStats["rooms"]; roomStatus: Room
   { statsKey: "inspected",          roomStatus: "INSPECTED",            description: "Менежер шалгалт хүлээж буй" },
   { statsKey: "outOfOrder",         roomStatus: "OUT_OF_ORDER",         description: "Борлуулах боломжгүй" },
   { statsKey: "outOfService",       roomStatus: "OUT_OF_SERVICE",       description: "Түр хаалттай" },
+  { statsKey: "dueOut",             roomStatus: "DUE_OUT",              description: "Өнөөдөр гарах зочид" },
 ];
 
 export default function Dashboard() {

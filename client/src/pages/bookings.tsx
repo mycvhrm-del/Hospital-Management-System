@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CalendarDays, Search, UserPlus, X, Check, ClipboardList, Clock, CheckCircle2, Pencil, Trash2, Banknote, LogOut, LogIn, Ban } from "lucide-react";
+import { Plus, CalendarDays, Search, UserPlus, X, Check, ClipboardList, Clock, CheckCircle2, Pencil, Trash2, Banknote, LogOut, LogIn, Ban, CalendarClock } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Booking, Guest, Room, RoomCategory, Service, TreatmentPlan } from "@shared/schema";
@@ -29,7 +29,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const bookingFormSchema = z.object({
   guestId: z.string().min(1, "Зочин сонгоно уу"),
@@ -119,6 +119,8 @@ export default function BookingsPage() {
   const [editBooking, setEditBooking] = useState<Booking | null>(null);
   const [deleteBookingId, setDeleteBookingId] = useState<string | null>(null);
   const [checkoutBooking, setCheckoutBooking] = useState<Booking | null>(null);
+  const [extendBooking, setExtendBooking] = useState<Booking | null>(null);
+  const [extendDate, setExtendDate] = useState("");
 
   const { data: allBookings = [], isLoading } = useQuery<Booking[]>({
     queryKey: ["/api/bookings"],
@@ -460,7 +462,24 @@ export default function BookingsPage() {
   });
   const canCancel = (status: string) => status === "PENDING" || status === "CONFIRMED" || status === "NO_SHOW";
 
-  const bookingsOnly = allBookings.filter(b => b.status !== "CHECKED_IN" && b.status !== "CHECKED_OUT");
+  const extendMutation = useMutation({
+    mutationFn: ({ id, newCheckOut }: { id: string; newCheckOut: string }) =>
+      apiRequest("POST", `/api/bookings/${id}/extend`, { newCheckOut }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
+      setExtendBooking(null);
+      setExtendDate("");
+      toast({ title: "Амжилттай", description: "Захиалга сунгагдлаа" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const bookingsOnly = allBookings.filter(b => b.status !== "CHECKED_IN" && b.status !== "CHECKED_OUT" && b.status !== "EXTENDED");
+  const activeStays = allBookings.filter(b => b.status === "CHECKED_IN" || b.status === "EXTENDED");
 
   const filtered = bookingsOnly.filter(b => {
     if (statusFilter !== "ALL" && b.status !== statusFilter) return false;
@@ -483,10 +502,11 @@ export default function BookingsPage() {
   const today = new Date().toISOString().split("T")[0];
 
   const canEdit = (status: string) => status !== "CHECKED_OUT" && status !== "CANCELLED" && status !== "NO_SHOW";
-  const canDelete = (status: string) => status !== "CHECKED_IN" && status !== "NO_SHOW";
+  const canDelete = (status: string) => status !== "CHECKED_IN" && status !== "NO_SHOW" && status !== "EXTENDED";
   const canCheckin = (status: string) => status === "CONFIRMED" || status === "PENDING" || status === "NO_SHOW";
-  const canCheckout = (status: string) => status === "CHECKED_IN";
+  const canCheckout = (status: string) => status === "CHECKED_IN" || status === "EXTENDED";
   const canPay = (status: string) => status !== "CHECKED_OUT" && status !== "CANCELLED" && status !== "NO_SHOW";
+  const canExtend = (status: string) => status === "CHECKED_IN" || status === "EXTENDED";
 
   return (
     <div className="p-6 space-y-6" data-testid="page-bookings">
@@ -504,6 +524,77 @@ export default function BookingsPage() {
           Шинэ захиалга
         </Button>
       </div>
+
+      {activeStays.length > 0 && (
+        <Card data-testid="card-active-stays">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              Одоогийн зочид ({activeStays.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Зочин</TableHead>
+                  <TableHead>Өрөө</TableHead>
+                  <TableHead>Орсон</TableHead>
+                  <TableHead>Гарах</TableHead>
+                  <TableHead>Төлөв</TableHead>
+                  <TableHead className="text-right">Үлдэгдэл</TableHead>
+                  <TableHead className="w-40"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {activeStays.map((booking) => {
+                  const guest = guestMap[booking.guestId];
+                  const room = roomMap[booking.roomId];
+                  const balance = Number(booking.totalAmount) - Number(booking.depositPaid);
+                  return (
+                    <TableRow key={booking.id} data-testid={`row-active-booking-${booking.id}`}>
+                      <TableCell className="font-medium">{guest ? `${guest.lastName} ${guest.firstName}` : "—"}</TableCell>
+                      <TableCell>{room ? room.roomNumber : "—"}</TableCell>
+                      <TableCell>{new Date(booking.checkIn).toLocaleDateString("mn-MN")}</TableCell>
+                      <TableCell>{new Date(booking.checkOut).toLocaleDateString("mn-MN")}</TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[booking.status] || ""}`}>
+                          {statusLabels[booking.status] || booking.status}
+                        </span>
+                      </TableCell>
+                      <TableCell className={`text-right ${balance > 0 ? "text-destructive font-medium" : ""}`}>
+                        {balance.toLocaleString()}₮
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-1">
+                          {canPay(booking.status) && balance > 0 && (
+                            <Button size="icon" variant="ghost" onClick={() => openPayment(booking)} data-testid={`button-pay-active-${booking.id}`} title="Төлбөр">
+                              <Banknote className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="text-purple-600 hover:text-purple-700"
+                            onClick={() => { setExtendBooking(booking); setExtendDate(new Date(booking.checkOut).toISOString().split("T")[0]); }}
+                            data-testid={`button-extend-active-${booking.id}`}
+                            title="Хугацаа сунгах"
+                          >
+                            <CalendarClock className="h-4 w-4" />
+                          </Button>
+                          <Button size="icon" variant="ghost" onClick={() => openCheckout(booking)} data-testid={`button-checkout-active-${booking.id}`} title="Check-out">
+                            <LogOut className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -621,6 +712,18 @@ export default function BookingsPage() {
                             title="Check-out"
                           >
                             <LogOut className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canExtend(booking.status) && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="text-purple-600 hover:text-purple-700"
+                            onClick={() => { setExtendBooking(booking); setExtendDate(new Date(booking.checkOut).toISOString().split("T")[0]); }}
+                            data-testid={`button-extend-booking-${booking.id}`}
+                            title="Хугацаа сунгах"
+                          >
+                            <CalendarClock className="h-4 w-4" />
                           </Button>
                         )}
                         <Button
@@ -972,6 +1075,45 @@ export default function BookingsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!extendBooking} onOpenChange={(open) => { if (!open) { setExtendBooking(null); setExtendDate(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle data-testid="text-extend-dialog-title">Хугацаа сунгах</DialogTitle>
+            <DialogDescription>
+              {extendBooking && (() => {
+                const guest = guestMap[extendBooking.guestId];
+                const room = roomMap[extendBooking.roomId];
+                return `${guest ? `${guest.lastName} ${guest.firstName}` : "—"} · Өрөө ${room?.roomNumber || "—"} | Одоогийн checkout: ${new Date(extendBooking.checkOut).toLocaleDateString("mn-MN")}`;
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Шинэ checkout огноо</label>
+              <Input
+                type="date"
+                value={extendDate}
+                min={extendBooking ? new Date(extendBooking.checkOut).toISOString().split("T")[0] : today}
+                onChange={(e) => setExtendDate(e.target.value)}
+                data-testid="input-extend-checkout-date"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setExtendBooking(null); setExtendDate(""); }} data-testid="button-cancel-extend">
+                Цуцлах
+              </Button>
+              <Button
+                onClick={() => extendBooking && extendMutation.mutate({ id: extendBooking.id, newCheckOut: extendDate })}
+                disabled={!extendDate || extendMutation.isPending}
+                data-testid="button-confirm-extend"
+              >
+                {extendMutation.isPending ? "Сунгаж байна..." : "Сунгах"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={treatmentDialogOpen} onOpenChange={(open) => { if (!open) setTreatmentDialogOpen(false); }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-auto">

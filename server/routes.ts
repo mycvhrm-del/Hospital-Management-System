@@ -943,6 +943,7 @@ export async function registerRoutes(
     const inspectedCount = allRooms.filter(r => r.status === "INSPECTED").length;
     const outOfOrderCount = allRooms.filter(r => r.status === "OUT_OF_ORDER").length;
     const outOfServiceCount = allRooms.filter(r => r.status === "OUT_OF_SERVICE").length;
+    const dueOutCount = allRooms.filter(r => r.status === "DUE_OUT").length;
 
     const today = new Date();
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -968,10 +969,11 @@ export async function registerRoutes(
         inspected: inspectedCount,
         outOfOrder: outOfOrderCount,
         outOfService: outOfServiceCount,
+        dueOut: dueOutCount,
       },
       todayRevenue,
       totalBookings: allBookings.length,
-      activeBookings: allBookings.filter(b => b.status === "CHECKED_IN").length,
+      activeBookings: allBookings.filter(b => b.status === "CHECKED_IN" || b.status === "EXTENDED").length,
     });
   });
 

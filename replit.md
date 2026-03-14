@@ -12,7 +12,7 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - `shared/schema.ts` - Drizzle ORM schema definitions and Zod validation schemas
 - `server/` - Express API routes, storage layer (DatabaseStorage), seed data
 - `client/src/` - React frontend with pages and components
-- `client/src/lib/room-status.ts` - **Single source of truth** for all 8 room status configs (label, icon, dotClass, bgClass, textClass, badgeClass, rowBg, tdBg, chartColor, nonSellable). ALL pages must import from here.
+- `client/src/lib/room-status.ts` - **Single source of truth** for all 9 room status configs (label, icon, dotClass, bgClass, textClass, badgeClass, rowBg, tdBg, chartColor, nonSellable). ALL pages must import from here.
 - Sidebar-based layout using Shadcn Sidebar component (collapsible icon mode)
 
 ## Database Models
@@ -32,29 +32,31 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - Transaction - Payment records
 - Floor - Managed floor options (name, number) used in room assignment
 - AuditLog - System activity log (userId, action, description, targetTable)
+- Setting - Key-value system settings (key: varchar PK, value: text). Default checkout_time="12:00"
 
-## Room Status System (8 statuses)
+## Room Status System (9 statuses)
 All statuses defined in `client/src/lib/room-status.ts` as `ROOM_STATUS_CONFIG`.  
 Status flow:
 - AVAILABLE → PENDING (booking created) → OCCUPIED (check-in) → CLEANING (check-out) → CLEANING_IN_PROGRESS → INSPECTED → AVAILABLE
+- OCCUPIED → DUE_OUT (auto-job: checkout day AND time ≥ checkoutTime-1hr) → OCCUPIED (extend) or CLEANING (checkout)
 - AVAILABLE ↔ OUT_OF_ORDER (OOO) — needs maintenance
 - AVAILABLE ↔ OUT_OF_SERVICE (OOS) — temporarily closed
 - nonSellable: CLEANING, CLEANING_IN_PROGRESS, INSPECTED, OUT_OF_ORDER, OUT_OF_SERVICE
 
 ## Pages & Routes
-- `/` - Dashboard with stat cards (today's revenue, room counts, active bookings) and room status pie chart (all 8 statuses)
-- `/room-grid` - Interactive Room Grid Dashboard (color-coded cards, floor tabs, quick booking, check-out, DUE_OUT badge, 8-status actions)
+- `/` - Dashboard with stat cards (today's revenue, room counts, active bookings) and room status pie chart (all 9 statuses including DUE_OUT)
+- `/room-grid` - Interactive Room Grid Dashboard (color-coded cards, floor tabs, quick booking, check-out, DUE_OUT badge, 9-status actions)
 - `/timeline` - Weekly Occupancy Timeline (7-day calendar with booking bars, room-by-day grid, quick booking from empty cells, OOO/OOS overlays)
 - `/guests` - Guest list with CRUD, search, family member linking
 - `/guests/:id` - Guest detail with medical history viewer, family members, bookings, treatment creation (Doctor's Panel), My Schedule section
 - `/daily-schedule` - Daily treatment schedule showing all treatments for a selected date with complete/mark done actions and low stock alerts
-- `/bookings` - Bookings list with search, status filter, create booking dialog with service selection, treatment plan management per booking
+- `/bookings` - Bookings list with search, status filter, create booking dialog with service selection, treatment plan management per booking; "Одоогийн зочид" section for CHECKED_IN/EXTENDED with extend+checkout actions
 - `/sales` - Sales page showing CHECKED_IN and CHECKED_OUT bookings with revenue summary cards, payment and checkout actions
 - `/housekeeping` - Full housekeeping workflow: CLEANING → CLEANING_IN_PROGRESS → INSPECTED → AVAILABLE; separate sections per stage + OOO + OOS; 6-stat header cards
 - `/services` - Services/Packages CRUD (tabs: All/Service/Package). Service creation is separate from Package creation.
 - `/billing` - Family billing overview (aggregated by family groups)
 - `/inventory` - Inventory management with CRUD, purchase history, low stock warnings
-- `/settings` - Room Categories, Floors, and Rooms CRUD (Tabs layout with DB-managed floors)
+- `/settings` - Room Categories, Floors, Rooms CRUD (Tabs layout) + **Системийн тохиргоо** tab with checkout_time setting
 
 ## API Endpoints
 - `GET/POST/PATCH/DELETE /api/room-categories` - Room category CRUD (audit log on price change)
@@ -89,7 +91,10 @@ Status flow:
 - `GET /api/daily-schedule?date=YYYY-MM-DD` - Daily schedule with enriched guest/room/staff data
 - `GET /api/guests/:id/treatment-plans` - All treatment plans for a guest across bookings
 - `GET /api/audit-logs` - Audit log entries
-- `GET /api/dashboard/stats` - Dashboard statistics (all 8 room status counts, revenue, booking counts)
+- `GET /api/dashboard/stats` - Dashboard statistics (all 9 room status counts including dueOut, revenue, booking counts)
+- `GET /api/settings` - All settings as key-value map
+- `PUT /api/settings/:key` - Upsert a setting value
+- `POST /api/bookings/:id/extend` - Extend booking checkout date (CHECKED_IN or EXTENDED → EXTENDED, recalculates total, reverts DUE_OUT→OCCUPIED)
 
 ## Treatment BOM & Auto-Deduction
 - Each service can have a Bill of Materials (BOM) linking to inventory items with quantities needed
@@ -102,10 +107,18 @@ Status flow:
 - Create booking → PENDING (room=PENDING); date validation: checkIn must be < checkOut
 - Pay DEPOSIT → CONFIRMED (room stays PENDING)
 - CHECK_IN → room=OCCUPIED
+- DUE_OUT auto-job: runs every minute; if checkout is today AND current time ≥ (checkout_time - 1 hour), room becomes DUE_OUT
+- EXTEND booking (POST /api/bookings/:id/extend): booking=EXTENDED, room reverts OCCUPIED; booking total recalculated
 - CHECK_OUT → room=CLEANING (visible on Housekeeping page)
 - CANCEL (never checked in) → room=AVAILABLE
 - CANCEL (was checked in) → room=CLEANING
 - Cleaning done (Housekeeping or Room Grid) → room=AVAILABLE
+
+## Automated Jobs
+- **runNoShowJob** (hourly): marks PENDING/CONFIRMED bookings past checkIn as NO_SHOW
+- **runDueOutJob** (every minute): sets OCCUPIED rooms to DUE_OUT when checkout day arrives and time ≥ checkoutTime-1hr; reverts DUE_OUT→OCCUPIED if booking extended
+- Both jobs log to console with [noshow-job] and [dueout-job] prefixes
+- checkout_time stored in `settings` table (key="checkout_time", value="HH:MM"), default "12:00"
 
 ## Booking totalAmount Recalculation
 - On POST /api/bookings: server computes nights × basePrice + services total (client value ignored)
