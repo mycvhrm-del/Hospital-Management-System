@@ -156,9 +156,12 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
               <span className="text-[10px] text-muted-foreground">{room.category.name}</span>
             )}
             {room.category && room.category.capacity > 1 && (
-              <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-0.5" data-testid={`text-capacity-${room.roomNumber}`}>
+              <span
+                className={`text-[10px] font-medium flex items-center gap-0.5 ${room.activeBooking ? "text-foreground" : "text-muted-foreground"}`}
+                data-testid={`text-capacity-${room.roomNumber}`}
+              >
                 <BedDouble className="h-2.5 w-2.5" />
-                {room.category.capacity}
+                {room.activeBooking ? `${room.activeBooking.guestCount}/` : "0/"}{room.category.capacity}
               </span>
             )}
           </div>
