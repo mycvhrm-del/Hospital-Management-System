@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Pencil, Trash2, Layers, BedDouble, Users, Building } from "lucide-react";
+import { Plus, Pencil, Trash2, Layers, BedDouble, Users, Building, Settings } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { RoomCategory, Room, Floor } from "@shared/schema";
@@ -81,7 +81,12 @@ const statusLabels: Record<string, string> = {
   AVAILABLE: "Сул",
   OCCUPIED: "Дүүрсэн",
   PENDING: "Хүлээгдэж буй",
-  CLEANING: "Цэвэрлэж буй",
+  CLEANING: "Хүлээгдэж буй",
+  CLEANING_IN_PROGRESS: "Цэвэрлэж буй",
+  INSPECTED: "Шалгагдсан",
+  OUT_OF_ORDER: "Засвартай",
+  OUT_OF_SERVICE: "Хаалттай",
+  DUE_OUT: "Гарах өдөр",
 };
 
 const statusVariants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -89,6 +94,11 @@ const statusVariants: Record<string, "default" | "secondary" | "destructive" | "
   OCCUPIED: "destructive",
   PENDING: "outline",
   CLEANING: "secondary",
+  CLEANING_IN_PROGRESS: "secondary",
+  INSPECTED: "secondary",
+  OUT_OF_ORDER: "destructive",
+  OUT_OF_SERVICE: "secondary",
+  DUE_OUT: "outline",
 };
 
 function CategorySection() {
@@ -913,6 +923,76 @@ function FloorSection() {
   );
 }
 
+function SystemSettingsSection() {
+  const { toast } = useToast();
+  const [checkoutTime, setCheckoutTime] = useState("12:00");
+  const [dirty, setDirty] = useState(false);
+
+  const { data: settingsData, isLoading } = useQuery<Record<string, string>>({
+    queryKey: ["/api/settings"],
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: (value: string) =>
+      apiRequest("PUT", "/api/settings/checkout_time", { value }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      setDirty(false);
+      toast({ title: "Амжилттай", description: "Тохиргоо хадгалагдлаа" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const loaded = !!settingsData;
+  const serverVal = settingsData?.checkout_time ?? "12:00";
+
+  if (!isLoading && loaded && checkoutTime !== serverVal && !dirty) {
+    setCheckoutTime(serverVal);
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold" data-testid="text-system-settings-title">Системийн тохиргоо</h3>
+        <p className="text-sm text-muted-foreground">Ерөнхий системийн параметрүүдийг тохируулна уу</p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Checkout цаг</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Зочид checkout хийх ёстой стандарт цаг. Checkout цагаас 1 цагийн өмнө өрөөнүүд автоматаар <span className="font-medium text-orange-600">Гарах өдөр</span> гэж тэмдэглэгдэнэ.
+          </p>
+          <div className="flex items-center gap-3">
+            <Input
+              type="time"
+              value={checkoutTime}
+              onChange={(e) => { setCheckoutTime(e.target.value); setDirty(true); }}
+              className="w-40"
+              data-testid="input-checkout-time"
+              disabled={isLoading}
+            />
+            <Button
+              onClick={() => saveMutation.mutate(checkoutTime)}
+              disabled={!dirty || saveMutation.isPending}
+              data-testid="button-save-checkout-time"
+            >
+              {saveMutation.isPending ? "Хадгалж байна..." : "Хадгалах"}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Одоогийн тохиргоо: <span className="font-medium" data-testid="text-current-checkout-time">{serverVal}</span>
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   return (
     <div className="p-6 space-y-6" data-testid="page-settings">
@@ -939,6 +1019,10 @@ export default function SettingsPage() {
             <BedDouble className="h-4 w-4 mr-2" />
             Өрөөнүүд
           </TabsTrigger>
+          <TabsTrigger value="system" data-testid="tab-system-settings">
+            <Settings className="h-4 w-4 mr-2" />
+            Системийн тохиргоо
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="categories" className="mt-4">
           <CategorySection />
@@ -948,6 +1032,9 @@ export default function SettingsPage() {
         </TabsContent>
         <TabsContent value="rooms" className="mt-4">
           <RoomSection />
+        </TabsContent>
+        <TabsContent value="system" className="mt-4">
+          <SystemSettingsSection />
         </TabsContent>
       </Tabs>
     </div>

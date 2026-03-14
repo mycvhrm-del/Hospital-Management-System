@@ -1,7 +1,7 @@
 import type { ElementType } from "react";
 import {
   CheckCircle, AlertTriangle, Clock, Sparkles, PlayCircle,
-  ShieldCheck, WrenchIcon, MinusCircle,
+  ShieldCheck, WrenchIcon, MinusCircle, LogOut,
 } from "lucide-react";
 
 export type RoomStatus =
@@ -12,7 +12,8 @@ export type RoomStatus =
   | "CLEANING_IN_PROGRESS"
   | "INSPECTED"
   | "OUT_OF_ORDER"
-  | "OUT_OF_SERVICE";
+  | "OUT_OF_SERVICE"
+  | "DUE_OUT";
 
 export interface RoomStatusConfig {
   label: string;
@@ -123,6 +124,18 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatus, RoomStatusConfig> = {
     tdBg: "bg-zinc-50 dark:bg-zinc-900/30",
     chartColor: "#71717a",
     nonSellable: true,
+  },
+  DUE_OUT: {
+    label: "Гарах өдөр",
+    icon: LogOut,
+    dotClass: "bg-orange-500",
+    bgClass: "bg-orange-50 border-orange-200 dark:bg-orange-950/30 dark:border-orange-800",
+    textClass: "text-orange-700 dark:text-orange-400",
+    badgeClass: "bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900 dark:text-orange-300 dark:border-orange-700",
+    rowBg: "bg-orange-50 dark:bg-orange-900/20",
+    tdBg: "bg-orange-50 dark:bg-orange-900/20",
+    chartColor: "#f97316",
+    nonSellable: false,
   },
 };
 

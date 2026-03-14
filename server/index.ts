@@ -1,5 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes, runNoShowJob } from "./routes";
+import { registerRoutes, runNoShowJob, runDueOutJob } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 
@@ -67,6 +67,10 @@ app.use((req, res, next) => {
   // NO_SHOW автомат job: сервер эхлэхэд нэг удаа, дараа нь цаг бүр
   await runNoShowJob();
   setInterval(runNoShowJob, 60 * 60 * 1000);
+
+  // DUE_OUT автомат job: сервер эхлэхэд нэг удаа, дараа нь минут бүр
+  await runDueOutJob();
+  setInterval(runDueOutJob, 60 * 1000);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

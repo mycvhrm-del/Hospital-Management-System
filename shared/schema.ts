@@ -12,8 +12,9 @@ export const roomStatusEnum = pgEnum("room_status", [
   "INSPECTED",
   "OUT_OF_ORDER",
   "OUT_OF_SERVICE",
+  "DUE_OUT",
 ]);
-export const bookingStatusEnum = pgEnum("booking_status", ["PENDING", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELLED", "NO_SHOW"]);
+export const bookingStatusEnum = pgEnum("booking_status", ["PENDING", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELLED", "NO_SHOW", "EXTENDED"]);
 
 export const roomCategories = pgTable("room_categories", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -159,11 +160,16 @@ export const auditLogs = pgTable("audit_logs", {
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
 
+export const settings = pgTable("settings", {
+  key: varchar("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
 export const insertStaffSchema = createInsertSchema(staff).omit({ id: true });
 export const insertRoomCategorySchema = createInsertSchema(roomCategories).omit({ id: true });
 export const insertFloorSchema = createInsertSchema(floors).omit({ id: true });
 export const insertRoomSchema = createInsertSchema(rooms).omit({ id: true }).extend({
-  status: z.enum(["AVAILABLE", "OCCUPIED", "PENDING", "CLEANING", "CLEANING_IN_PROGRESS", "INSPECTED", "OUT_OF_ORDER", "OUT_OF_SERVICE"]).optional(),
+  status: z.enum(["AVAILABLE", "OCCUPIED", "PENDING", "CLEANING", "CLEANING_IN_PROGRESS", "INSPECTED", "OUT_OF_ORDER", "OUT_OF_SERVICE", "DUE_OUT"]).optional(),
 });
 export const insertGuestSchema = createInsertSchema(guests).omit({ id: true, createdAt: true });
 export const insertBookingSchema = createInsertSchema(bookings).omit({ id: true });
@@ -210,3 +216,4 @@ export type InventoryPurchase = typeof inventoryPurchases.$inferSelect;
 export type InsertInventoryPurchase = z.infer<typeof insertInventoryPurchaseSchema>;
 export type Staff = typeof staff.$inferSelect;
 export type InsertStaff = z.infer<typeof insertStaffSchema>;
+export type Setting = typeof settings.$inferSelect;

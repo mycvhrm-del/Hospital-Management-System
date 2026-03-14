@@ -7,6 +7,37 @@ function logJob(message: string) {
   console.log(`${t} [noshow-job] ${message}`);
 }
 
+function logDueOut(message: string) {
+  const t = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
+  console.log(`${t} [dueout-job] ${message}`);
+}
+
+export async function runDueOutJob() {
+  try {
+    const checkoutTimeSetting = await storage.getSetting("checkout_time");
+    const checkoutTime = checkoutTimeSetting?.value ?? "12:00";
+    const [hourStr, minuteStr] = checkoutTime.split(":");
+    const hour = parseInt(hourStr, 10);
+    const minute = parseInt(minuteStr, 10);
+
+    const candidates = await storage.getDueOutCandidates(hour, minute);
+    for (const booking of candidates) {
+      const room = await storage.getRoom(booking.roomId);
+      if (!room || room.status === "DUE_OUT") continue;
+      await storage.updateRoom(booking.roomId, { status: "DUE_OUT" });
+      logDueOut(`Өрөө ${room.roomNumber} — DUE_OUT болов (checkout: ${checkoutTime})`);
+    }
+
+    const expiredRooms = await storage.getExpiredDueOutRooms();
+    for (const room of expiredRooms) {
+      await storage.updateRoom(room.id, { status: "OCCUPIED" });
+      logDueOut(`Өрөө ${room.roomNumber} — OCCUPIED буцав (extend хийгдсэн)`);
+    }
+  } catch (err) {
+    logDueOut(`Алдаа: ${err}`);
+  }
+}
+
 export async function runNoShowJob() {
   try {
     const candidates = await storage.getNoShowCandidates();
@@ -1091,6 +1122,62 @@ export async function registerRoutes(
 
     allPlans.sort((a, b) => new Date(a.scheduleTime).getTime() - new Date(b.scheduleTime).getTime());
     res.json(allPlans);
+  });
+
+  app.get("/api/settings", async (_req, res) => {
+    const all = await storage.getAllSettings();
+    const obj: Record<string, string> = {};
+    for (const s of all) obj[s.key] = s.value;
+    res.json(obj);
+  });
+
+  app.put("/api/settings/:key", async (req, res) => {
+    const { key } = req.params;
+    const { value } = req.body;
+    if (typeof value !== "string") {
+      res.status(400).json({ error: "value мөр байх ёстой" });
+      return;
+    }
+    const s = await storage.upsertSetting(key, value);
+    res.json(s);
+  });
+
+  app.post("/api/bookings/:id/extend", async (req, res) => {
+    const { id } = req.params;
+    const { newCheckOut } = req.body;
+    if (!newCheckOut) {
+      res.status(400).json({ error: "newCheckOut шаардлагатай" });
+      return;
+    }
+    const booking = await storage.getBooking(id);
+    if (!booking) {
+      res.status(404).json({ error: "Захиалга олдсонгүй" });
+      return;
+    }
+    if (booking.status !== "CHECKED_IN" && booking.status !== "EXTENDED") {
+      res.status(400).json({ error: "Зөвхөн CHECKED_IN эсвэл EXTENDED захиалгыг сунгах боломжтой" });
+      return;
+    }
+    const newDate = new Date(newCheckOut);
+    if (isNaN(newDate.getTime()) || newDate <= new Date(booking.checkIn)) {
+      res.status(400).json({ error: "Хугацаа буруу байна" });
+      return;
+    }
+    const updated = await storage.updateBooking(id, { checkOut: newDate, status: "EXTENDED" });
+    if (!updated) { res.status(500).json({ error: "Шинэчлэх амжилтгүй" }); return; }
+    await recalcBookingTotal(id);
+    const room = await storage.getRoom(booking.roomId);
+    if (room && room.status === "DUE_OUT") {
+      await storage.updateRoom(booking.roomId, { status: "OCCUPIED" });
+    }
+    await storage.createAuditLog({
+      userId: "receptionist",
+      action: "EXTEND_BOOKING",
+      description: `Захиалга #${id.slice(-6)} — checkout ${newDate.toLocaleDateString("mn-MN")} болтол сунгагдлаа`,
+      targetTable: "bookings",
+    });
+    const refreshed = await storage.getBooking(id);
+    res.json(refreshed);
   });
 
   return httpServer;

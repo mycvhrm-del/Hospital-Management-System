@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
   roomCategories, floors, rooms, guests, bookings, transactions, services, packageServices, bookingServices,
-  inventory, inventoryPurchases, serviceMaterials, treatmentPlans, materialUsages, auditLogs, staff,
+  inventory, inventoryPurchases, serviceMaterials, treatmentPlans, materialUsages, auditLogs, staff, settings,
   type RoomCategory, type InsertRoomCategory,
   type Floor, type InsertFloor,
   type Room, type InsertRoom,
@@ -20,6 +20,7 @@ import {
   type PackageService,
   type AuditLog, type InsertAuditLog,
   type Staff, type InsertStaff,
+  type Setting,
 } from "@shared/schema";
 
 const db = drizzle(process.env.DATABASE_URL!);
@@ -106,6 +107,12 @@ export interface IStorage {
   getTransaction(id: string): Promise<Transaction | undefined>;
   deleteTransaction(id: string): Promise<boolean>;
   getNoShowCandidates(): Promise<Booking[]>;
+  getDueOutCandidates(checkoutHour: number, checkoutMinute: number): Promise<Booking[]>;
+  getExpiredDueOutRooms(): Promise<Room[]>;
+
+  getSetting(key: string): Promise<Setting | undefined>;
+  getAllSettings(): Promise<Setting[]>;
+  upsertSetting(key: string, value: string): Promise<Setting>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -507,6 +514,63 @@ export class DatabaseStorage implements IStorage {
         )
       )
     );
+  }
+
+  async getDueOutCandidates(checkoutHour: number, checkoutMinute: number): Promise<Booking[]> {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+    const triggerTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), checkoutHour, checkoutMinute - 60);
+    if (now < triggerTime) return [];
+    return db.select().from(bookings).where(
+      and(
+        gt(bookings.checkOut, todayStart),
+        lt(bookings.checkOut, todayEnd),
+        or(
+          eq(bookings.status, "CHECKED_IN"),
+          eq(bookings.status, "EXTENDED")
+        )
+      )
+    );
+  }
+
+  async getExpiredDueOutRooms(): Promise<Room[]> {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+    const dueOutRooms = await db.select().from(rooms).where(eq(rooms.status, "DUE_OUT"));
+    const result: Room[] = [];
+    for (const room of dueOutRooms) {
+      const [booking] = await db.select().from(bookings).where(
+        and(
+          eq(bookings.roomId, room.id),
+          or(
+            eq(bookings.status, "CHECKED_IN"),
+            eq(bookings.status, "EXTENDED")
+          )
+        )
+      );
+      if (!booking) { result.push(room); continue; }
+      const co = new Date(booking.checkOut);
+      if (co < todayStart || co >= todayEnd) result.push(room);
+    }
+    return result;
+  }
+
+  async getSetting(key: string): Promise<Setting | undefined> {
+    const [s] = await db.select().from(settings).where(eq(settings.key, key));
+    return s;
+  }
+
+  async getAllSettings(): Promise<Setting[]> {
+    return db.select().from(settings);
+  }
+
+  async upsertSetting(key: string, value: string): Promise<Setting> {
+    const [s] = await db.insert(settings).values({ key, value })
+      .onConflictDoUpdate({ target: settings.key, set: { value } })
+      .returning();
+    return s;
   }
 }
 
