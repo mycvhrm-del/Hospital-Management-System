@@ -65,7 +65,7 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatus, RoomStatusConfig> = {
     nonSellable: false,
   },
   CLEANING: {
-    label: "Цэвэрлэх хүлээлт",
+    label: "Хүлээгдэж буй",
     icon: Sparkles,
     dotClass: "bg-slate-400",
     bgClass: "bg-slate-50 border-slate-200 dark:bg-slate-900/30 dark:border-slate-700",
