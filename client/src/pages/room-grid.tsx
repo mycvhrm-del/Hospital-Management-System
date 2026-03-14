@@ -458,6 +458,7 @@ type PaymentValues = z.infer<typeof paymentSchema>;
 export default function RoomGridPage() {
   const { toast } = useToast();
   const [selectedFloor, setSelectedFloor] = useState<string>("all");
+  const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [quickBookRoom, setQuickBookRoom] = useState<RoomGridItem | null>(null);
   const [paymentRoom, setPaymentRoom] = useState<RoomGridItem | null>(null);
   const [checkoutRoom, setCheckoutRoom] = useState<RoomGridItem | null>(null);
@@ -483,9 +484,24 @@ export default function RoomGridPage() {
     new Set([...dbFloors.map(f => f.number), ...roomGrid.map((r) => r.floor)])
   ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
+  const statusFilteredRooms = selectedStatus === "all" ? roomGrid : roomGrid.filter((r) => {
+    switch (selectedStatus) {
+      case "AVAILABLE": return r.status === "AVAILABLE";
+      case "OCCUPIED": return r.status === "OCCUPIED" || r.status === "DUE_OUT";
+      case "DUE_OUT": return r.status === "DUE_OUT";
+      case "PENDING": return r.status === "PENDING" && r.activeBooking?.status !== "CONFIRMED" && r.activeBooking?.status !== "NO_SHOW";
+      case "CONFIRMED": return r.status === "PENDING" && r.activeBooking?.status === "CONFIRMED";
+      case "NO_SHOW": return r.activeBooking?.status === "NO_SHOW";
+      case "CLEANING": return r.status === "CLEANING" || r.status === "CLEANING_IN_PROGRESS" || r.status === "INSPECTED";
+      case "OUT_OF_ORDER": return r.status === "OUT_OF_ORDER";
+      case "OUT_OF_SERVICE": return r.status === "OUT_OF_SERVICE";
+      default: return true;
+    }
+  });
+
   const filteredRooms = selectedFloor === "all"
-    ? roomGrid
-    : roomGrid.filter((r) => String(r.floor) === selectedFloor);
+    ? statusFilteredRooms
+    : statusFilteredRooms.filter((r) => String(r.floor) === selectedFloor);
 
   const sortedRooms = [...filteredRooms].sort((a, b) => a.roomNumber.localeCompare(b.roomNumber));
 
@@ -628,53 +644,108 @@ export default function RoomGridPage() {
         </p>
       </div>
 
-      <div className="flex items-center gap-4 flex-wrap text-xs">
-        <div className="flex items-center gap-1.5">
-          <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-          <span className="text-muted-foreground">Сул ({stats.available})</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="h-2.5 w-2.5 rounded-full bg-rose-500" />
-          <span className="text-muted-foreground">Дүүрсэн ({stats.occupied})</span>
-        </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => setSelectedStatus("all")}
+          data-testid="button-status-filter-all"
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-all ${selectedStatus === "all" ? "bg-foreground text-background border-foreground" : "bg-background text-muted-foreground border-border hover:border-foreground/40"}`}
+        >
+          Бүгд
+          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${selectedStatus === "all" ? "bg-background/20" : "bg-muted"}`}>{stats.total}</span>
+        </button>
+        <button
+          onClick={() => setSelectedStatus("AVAILABLE")}
+          data-testid="button-status-filter-available"
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-all ${selectedStatus === "AVAILABLE" ? "bg-green-600 text-white border-green-600" : "bg-green-50 text-green-700 border-green-200 hover:border-green-400 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800"}`}
+        >
+          <div className="h-2 w-2 rounded-full bg-green-500" />
+          Сул
+          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${selectedStatus === "AVAILABLE" ? "bg-white/20" : "bg-green-100 dark:bg-green-900/40"}`}>{stats.available}</span>
+        </button>
+        <button
+          onClick={() => setSelectedStatus("OCCUPIED")}
+          data-testid="button-status-filter-occupied"
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-all ${selectedStatus === "OCCUPIED" ? "bg-red-600 text-white border-red-600" : "bg-red-50 text-red-700 border-red-200 hover:border-red-400 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800"}`}
+        >
+          <div className="h-2 w-2 rounded-full bg-red-500" />
+          Дүүрсэн
+          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${selectedStatus === "OCCUPIED" ? "bg-white/20" : "bg-red-100 dark:bg-red-900/40"}`}>{stats.occupied}</span>
+        </button>
         {stats.dueOut > 0 && (
-          <div className="flex items-center gap-1.5">
-            <CalendarCheck className="h-3 w-3 text-orange-500" />
-            <span className="text-orange-600 font-medium">Гарах дөхсөн ({stats.dueOut})</span>
-          </div>
+          <button
+            onClick={() => setSelectedStatus("DUE_OUT")}
+            data-testid="button-status-filter-due-out"
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-all ${selectedStatus === "DUE_OUT" ? "bg-orange-500 text-white border-orange-500" : "bg-orange-50 text-orange-700 border-orange-200 hover:border-orange-400 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800"}`}
+          >
+            <CalendarCheck className="h-3 w-3" />
+            Гарах өдөр
+            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${selectedStatus === "DUE_OUT" ? "bg-white/20" : "bg-orange-100 dark:bg-orange-900/40"}`}>{stats.dueOut}</span>
+          </button>
         )}
-        <div className="flex items-center gap-1.5">
-          <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-          <span className="text-muted-foreground">Хүлээгдэж буй ({stats.pending})</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="h-2.5 w-2.5 rounded-full bg-blue-500" />
-          <span className="text-muted-foreground">Баталгаажсан ({stats.confirmed})</span>
-        </div>
+        <button
+          onClick={() => setSelectedStatus("PENDING")}
+          data-testid="button-status-filter-pending"
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-all ${selectedStatus === "PENDING" ? "bg-amber-500 text-white border-amber-500" : "bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-400 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800"}`}
+        >
+          <div className="h-2 w-2 rounded-full bg-amber-400" />
+          Хүлээгдэж буй
+          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${selectedStatus === "PENDING" ? "bg-white/20" : "bg-amber-100 dark:bg-amber-900/40"}`}>{stats.pending}</span>
+        </button>
+        {stats.confirmed > 0 && (
+          <button
+            onClick={() => setSelectedStatus("CONFIRMED")}
+            data-testid="button-status-filter-confirmed"
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-all ${selectedStatus === "CONFIRMED" ? "bg-blue-600 text-white border-blue-600" : "bg-blue-50 text-blue-700 border-blue-200 hover:border-blue-400 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800"}`}
+          >
+            <div className="h-2 w-2 rounded-full bg-blue-500" />
+            Баталгаажсан
+            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${selectedStatus === "CONFIRMED" ? "bg-white/20" : "bg-blue-100 dark:bg-blue-900/40"}`}>{stats.confirmed}</span>
+          </button>
+        )}
         {stats.noShow > 0 && (
-          <div className="flex items-center gap-1.5">
-            <div className="h-2.5 w-2.5 rounded-full bg-orange-500" />
-            <span className="text-muted-foreground">Ирээгүй ({stats.noShow})</span>
-          </div>
+          <button
+            onClick={() => setSelectedStatus("NO_SHOW")}
+            data-testid="button-status-filter-no-show"
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-all ${selectedStatus === "NO_SHOW" ? "bg-orange-600 text-white border-orange-600" : "bg-orange-50 text-orange-700 border-orange-200 hover:border-orange-400 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800"}`}
+          >
+            <div className="h-2 w-2 rounded-full bg-orange-500" />
+            Ирээгүй
+            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${selectedStatus === "NO_SHOW" ? "bg-white/20" : "bg-orange-100 dark:bg-orange-900/40"}`}>{stats.noShow}</span>
+          </button>
         )}
-        <div className="flex items-center gap-1.5">
-          <div className="h-2.5 w-2.5 rounded-full bg-slate-400" />
-          <span className="text-muted-foreground">Цэвэрлэгээ ({stats.cleaning + stats.cleaningInProgress + stats.inspected})</span>
-        </div>
+        <button
+          onClick={() => setSelectedStatus("CLEANING")}
+          data-testid="button-status-filter-cleaning"
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-all ${selectedStatus === "CLEANING" ? "bg-slate-600 text-white border-slate-600" : "bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400 dark:bg-slate-900/30 dark:text-slate-400 dark:border-slate-700"}`}
+        >
+          <div className="h-2 w-2 rounded-full bg-slate-400" />
+          Цэвэрлэгээ
+          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${selectedStatus === "CLEANING" ? "bg-white/20" : "bg-slate-100 dark:bg-slate-800"}`}>{stats.cleaning + stats.cleaningInProgress + stats.inspected}</span>
+        </button>
         {stats.outOfOrder > 0 && (
-          <div className="flex items-center gap-1.5">
-            <div className="h-2.5 w-2.5 rounded-full bg-red-600" />
-            <span className="text-red-600 font-medium">Засвартай OOO ({stats.outOfOrder})</span>
-          </div>
+          <button
+            onClick={() => setSelectedStatus("OUT_OF_ORDER")}
+            data-testid="button-status-filter-ooo"
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-all ${selectedStatus === "OUT_OF_ORDER" ? "bg-red-700 text-white border-red-700" : "bg-red-50 text-red-800 border-red-300 hover:border-red-500 dark:bg-red-950/50 dark:text-red-300 dark:border-red-700"}`}
+          >
+            <div className="h-2 w-2 rounded-full bg-red-700" />
+            Засвартай (OOO)
+            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${selectedStatus === "OUT_OF_ORDER" ? "bg-white/20" : "bg-red-100 dark:bg-red-900/40"}`}>{stats.outOfOrder}</span>
+          </button>
         )}
         {stats.outOfService > 0 && (
-          <div className="flex items-center gap-1.5">
-            <div className="h-2.5 w-2.5 rounded-full bg-zinc-500" />
-            <span className="text-muted-foreground">Хаалттай OOS ({stats.outOfService})</span>
-          </div>
+          <button
+            onClick={() => setSelectedStatus("OUT_OF_SERVICE")}
+            data-testid="button-status-filter-oos"
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-all ${selectedStatus === "OUT_OF_SERVICE" ? "bg-zinc-600 text-white border-zinc-600" : "bg-zinc-50 text-zinc-600 border-zinc-300 hover:border-zinc-500 dark:bg-zinc-900/40 dark:text-zinc-400 dark:border-zinc-700"}`}
+          >
+            <div className="h-2 w-2 rounded-full bg-zinc-400" />
+            Хаалттай (OOS)
+            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${selectedStatus === "OUT_OF_SERVICE" ? "bg-white/20" : "bg-zinc-100 dark:bg-zinc-800"}`}>{stats.outOfService}</span>
+          </button>
         )}
-        <div className="ml-auto flex items-center gap-1 text-muted-foreground border-l pl-4">
-          <span>Борлуулах боломжтой:</span>
+        <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground border-l pl-3">
+          <span>Борлуулах:</span>
           <span className="font-semibold text-foreground">{stats.sellable}/{stats.total}</span>
         </div>
       </div>
