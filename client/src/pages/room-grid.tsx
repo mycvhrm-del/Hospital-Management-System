@@ -8,7 +8,7 @@ import {
   BedDouble, User, Phone, Calendar, CreditCard, Crown,
   CheckCircle, Clock, LogOut, ArrowRight, FileText,
   Banknote, CheckCheck, WrenchIcon, MinusCircle,
-  ShieldCheck, PlayCircle, CalendarCheck,
+  ShieldCheck, PlayCircle, CalendarCheck, X,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -99,6 +99,19 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
       queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
       queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
       toast({ title: "Амжилттай", description: `${room.roomNumber} өрөөнд check-in хийгдлээ` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => apiRequest("PATCH", `/api/bookings/${room.activeBooking!.id}/status`, { status: "CANCELLED" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      toast({ title: "Цуцлагдлаа", description: `${room.roomNumber} өрөөний захиалга цуцлагдлаа` });
     },
     onError: (err: Error) => {
       toast({ title: "Алдаа", description: err.message, variant: "destructive" });
@@ -313,7 +326,20 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
                     data-testid={`button-checkin-${room.roomNumber}`}
                   >
                     <CheckCheck className="h-3.5 w-3.5 mr-2" />
-                    {checkinMutation.isPending ? "Check-in хийж байна..." : "Оройтлын Check-in хийх"}
+                    {checkinMutation.isPending ? "Check-in хийж байна..." : "Check-in хийх"}
+                  </Button>
+                )}
+                {room.activeBooking.status === "NO_SHOW" && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="w-full"
+                    onClick={() => cancelMutation.mutate()}
+                    disabled={cancelMutation.isPending}
+                    data-testid={`button-cancel-${room.roomNumber}`}
+                  >
+                    <X className="h-3.5 w-3.5 mr-2" />
+                    {cancelMutation.isPending ? "Цуцалж байна..." : "Захиалга цуцлах"}
                   </Button>
                 )}
               </div>
