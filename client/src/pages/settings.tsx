@@ -65,7 +65,6 @@ const roomFormSchema = z.object({
   roomNumber: z.string().min(1, "Өрөөний дугаар оруулна уу"),
   floor: z.string().min(1, "Давхар сонгоно уу"),
   categoryId: z.string().min(1, "Ангилал сонгоно уу"),
-  status: z.enum(["AVAILABLE", "OCCUPIED", "PENDING", "CLEANING", "CLEANING_IN_PROGRESS", "INSPECTED", "OUT_OF_ORDER", "OUT_OF_SERVICE"]),
 });
 
 const floorFormSchema = z.object({
@@ -388,7 +387,7 @@ function RoomSection() {
 
   const form = useForm<RoomFormValues>({
     resolver: zodResolver(roomFormSchema),
-    defaultValues: { roomNumber: "", floor: "", categoryId: "", status: "AVAILABLE" },
+    defaultValues: { roomNumber: "", floor: "", categoryId: "" },
   });
 
   const createMutation = useMutation({
@@ -433,7 +432,7 @@ function RoomSection() {
 
   const openCreate = () => {
     setEditingRoom(null);
-    form.reset({ roomNumber: "", floor: "", categoryId: "", status: "AVAILABLE" });
+    form.reset({ roomNumber: "", floor: "", categoryId: "" });
     setDialogOpen(true);
   };
 
@@ -443,7 +442,6 @@ function RoomSection() {
       roomNumber: room.roomNumber,
       floor: room.floor,
       categoryId: room.categoryId,
-      status: room.status,
     });
     setDialogOpen(true);
   };
@@ -625,29 +623,6 @@ function RoomSection() {
                             {cat.name}
                           </SelectItem>
                         ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Төлөв</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-room-status">
-                          <SelectValue placeholder="Төлөв сонгох" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="AVAILABLE">Сул</SelectItem>
-                        <SelectItem value="OCCUPIED">Дүүрсэн</SelectItem>
-                        <SelectItem value="PENDING">Хүлээгдэж буй</SelectItem>
-                        <SelectItem value="CLEANING">Цэвэрлэж буй</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
