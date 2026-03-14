@@ -22,7 +22,7 @@ import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
@@ -62,6 +62,15 @@ const quickBookingSchema = z.object({
 });
 
 type QuickBookingValues = z.infer<typeof quickBookingSchema>;
+
+const newGuestSchema = z.object({
+  lastName: z.string().min(1, "Овог оруулна уу"),
+  firstName: z.string().min(1, "Нэр оруулна уу"),
+  idNumber: z.string().min(1, "Регистрийн дугаар оруулна уу"),
+  phone: z.string().min(1, "Утасны дугаар оруулна уу"),
+});
+
+type NewGuestValues = z.infer<typeof newGuestSchema>;
 
 const confirmedConfig = {
   label: "Баталгаажсан",
@@ -560,6 +569,7 @@ export default function RoomGridPage() {
   const [quickBookRoom, setQuickBookRoom] = useState<RoomGridItem | null>(null);
   const [paymentRoom, setPaymentRoom] = useState<RoomGridItem | null>(null);
   const [checkoutRoom, setCheckoutRoom] = useState<RoomGridItem | null>(null);
+  const [showNewGuestForm, setShowNewGuestForm] = useState(false);
 
   const { data: roomGrid = [], isLoading } = useQuery<RoomGridItem[]>({
     queryKey: ["/api/room-grid"],
@@ -653,6 +663,25 @@ export default function RoomGridPage() {
   const onQuickBookSubmit = (values: QuickBookingValues) => {
     bookMutation.mutate(values);
   };
+
+  const newGuestForm = useForm<NewGuestValues>({
+    resolver: zodResolver(newGuestSchema),
+    defaultValues: { lastName: "", firstName: "", idNumber: "", phone: "" },
+  });
+
+  const createGuestMutation = useMutation({
+    mutationFn: (data: NewGuestValues) => apiRequest("POST", "/api/guests", data),
+    onSuccess: async (newGuest: Guest) => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      form.setValue("guestId", newGuest.id);
+      newGuestForm.reset();
+      setShowNewGuestForm(false);
+      toast({ title: "Зочин бүртгэгдлээ", description: `${newGuest.lastName} ${newGuest.firstName} амжилттай нэмэгдлээ` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
 
   const paymentForm = useForm<PaymentValues>({
     resolver: zodResolver(paymentSchema),
@@ -891,7 +920,7 @@ export default function RoomGridPage() {
         </div>
       )}
 
-      <Dialog open={!!quickBookRoom} onOpenChange={(open) => !open && setQuickBookRoom(null)}>
+      <Dialog open={!!quickBookRoom} onOpenChange={(open) => { if (!open) { setQuickBookRoom(null); setShowNewGuestForm(false); newGuestForm.reset(); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle data-testid="text-quick-book-title">
@@ -908,22 +937,103 @@ export default function RoomGridPage() {
                 name="guestId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Зочин</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-quick-book-guest">
-                          <SelectValue placeholder="Зочин сонгох" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {allGuests.map((g) => (
-                          <SelectItem key={g.id} value={g.id}>
-                            {g.lastName} {g.firstName} ({g.idNumber})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
+                    <div className="flex items-center justify-between">
+                      <FormLabel>Зочин</FormLabel>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-6 px-2 text-xs gap-1"
+                        onClick={() => setShowNewGuestForm(!showNewGuestForm)}
+                        data-testid="button-add-new-guest"
+                      >
+                        <X className={`h-3 w-3 transition-transform ${showNewGuestForm ? "" : "rotate-45"}`} />
+                        {showNewGuestForm ? "Болих" : "Шинэ зочин"}
+                      </Button>
+                    </div>
+                    {!showNewGuestForm ? (
+                      <>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-quick-book-guest">
+                              <SelectValue placeholder="Зочин сонгох" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {allGuests.map((g) => (
+                              <SelectItem key={g.id} value={g.id}>
+                                {g.lastName} {g.firstName} ({g.idNumber})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </>
+                    ) : (
+                      <div className="border rounded-md p-3 space-y-2 bg-muted/30">
+                        <p className="text-xs font-medium text-muted-foreground">Шинэ зочин бүртгэх</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium">Овог</label>
+                            <Input
+                              placeholder="Овог"
+                              className="h-8 text-sm"
+                              {...newGuestForm.register("lastName")}
+                              data-testid="input-new-guest-lastname"
+                            />
+                            {newGuestForm.formState.errors.lastName && (
+                              <p className="text-xs text-destructive">{newGuestForm.formState.errors.lastName.message}</p>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium">Нэр</label>
+                            <Input
+                              placeholder="Нэр"
+                              className="h-8 text-sm"
+                              {...newGuestForm.register("firstName")}
+                              data-testid="input-new-guest-firstname"
+                            />
+                            {newGuestForm.formState.errors.firstName && (
+                              <p className="text-xs text-destructive">{newGuestForm.formState.errors.firstName.message}</p>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium">Регистр №</label>
+                            <Input
+                              placeholder="АА12345678"
+                              className="h-8 text-sm"
+                              {...newGuestForm.register("idNumber")}
+                              data-testid="input-new-guest-id"
+                            />
+                            {newGuestForm.formState.errors.idNumber && (
+                              <p className="text-xs text-destructive">{newGuestForm.formState.errors.idNumber.message}</p>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium">Утас</label>
+                            <Input
+                              placeholder="99001122"
+                              className="h-8 text-sm"
+                              {...newGuestForm.register("phone")}
+                              data-testid="input-new-guest-phone"
+                            />
+                            {newGuestForm.formState.errors.phone && (
+                              <p className="text-xs text-destructive">{newGuestForm.formState.errors.phone.message}</p>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="w-full h-8 text-sm"
+                          onClick={() => newGuestForm.handleSubmit((data) => createGuestMutation.mutate(data))()}
+                          disabled={createGuestMutation.isPending}
+                          data-testid="button-save-new-guest"
+                        >
+                          {createGuestMutation.isPending ? "Бүртгэж байна..." : "Зочин бүртгэх"}
+                        </Button>
+                      </div>
+                    )}
                   </FormItem>
                 )}
               />
