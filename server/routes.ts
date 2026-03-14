@@ -407,7 +407,7 @@ export async function registerRoutes(
     }
   });
 
-  const validBookingStatuses = ["PENDING", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELLED", "NO_SHOW"];
+  const validBookingStatuses = ["PENDING", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELLED", "NO_SHOW", "EXTENDED"];
 
   app.patch("/api/bookings/:id/status", async (req, res) => {
     const { status } = req.body;
@@ -458,7 +458,8 @@ export async function registerRoutes(
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         await storage.updateBooking(booking.id, { checkOut: today });
       }
-      if (previousStatus === "CHECKED_IN") {
+      if (previousStatus === "CHECKED_IN" || previousStatus === "EXTENDED") {
+        // Байрлаж байсан (CHECKED_IN эсвэл EXTENDED) зочинг цуцлахад өрөө цэвэрлэгээнд орно
         await storage.updateRoom(booking.roomId, { status: "CLEANING" });
       } else {
         // NO_SHOW эсвэл PENDING/CONFIRMED-с цуцлахад өрөө AVAILABLE болно

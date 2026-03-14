@@ -27,11 +27,13 @@ import { Card, CardContent } from "@/components/ui/card";
 
 const statusLabels: Record<string, string> = {
   CHECKED_IN: "Байрлаж буй",
+  EXTENDED: "Сунгасан",
   CHECKED_OUT: "Гарсан",
 };
 
 const statusColors: Record<string, string> = {
   CHECKED_IN: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
+  EXTENDED: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
   CHECKED_OUT: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200",
 };
 
@@ -76,7 +78,7 @@ export default function SalesPage() {
   const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
 
   const salesBookings = allBookings.filter(b =>
-    b.status === "CHECKED_IN" || b.status === "CHECKED_OUT"
+    b.status === "CHECKED_IN" || b.status === "EXTENDED" || b.status === "CHECKED_OUT"
   );
 
   const salesBookingIds = salesBookings.map(b => b.id);
@@ -115,7 +117,7 @@ export default function SalesPage() {
   const totalRevenue = salesBookings.reduce((sum, b) => sum + Number(b.depositPaid), 0);
   const totalExpected = salesBookings.reduce((sum, b) => sum + Number(b.totalAmount), 0);
   const totalOutstanding = totalExpected - totalRevenue;
-  const activeCount = salesBookings.filter(b => b.status === "CHECKED_IN").length;
+  const activeCount = salesBookings.filter(b => b.status === "CHECKED_IN" || b.status === "EXTENDED").length;
 
   const paymentForm = useForm<PaymentValues>({
     resolver: zodResolver(paymentSchema),
@@ -260,6 +262,7 @@ export default function SalesPage() {
           <SelectContent>
             <SelectItem value="ALL">Бүгд ({salesBookings.length})</SelectItem>
             <SelectItem value="CHECKED_IN">Байрлаж буй ({salesBookings.filter(b => b.status === "CHECKED_IN").length})</SelectItem>
+            <SelectItem value="EXTENDED">Сунгасан ({salesBookings.filter(b => b.status === "EXTENDED").length})</SelectItem>
             <SelectItem value="CHECKED_OUT">Гарсан ({salesBookings.filter(b => b.status === "CHECKED_OUT").length})</SelectItem>
           </SelectContent>
         </Select>

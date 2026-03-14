@@ -246,6 +246,7 @@ export class DatabaseStorage implements IStorage {
         or(
           eq(bookings.status, "CONFIRMED"),
           eq(bookings.status, "CHECKED_IN"),
+          eq(bookings.status, "EXTENDED"),
           eq(bookings.status, "PENDING"),
           eq(bookings.status, "NO_SHOW")
         )
