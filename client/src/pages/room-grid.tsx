@@ -151,9 +151,17 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
             <StatusIcon className={`h-3.5 w-3.5 ${config.textClass}`} />
             <span className={`text-xs font-medium ${config.textClass}`}>{config.label}</span>
           </div>
-          {room.category && (
-            <span className="text-[10px] text-muted-foreground">{room.category.name}</span>
-          )}
+          <div className="flex items-center justify-between w-full gap-1">
+            {room.category && (
+              <span className="text-[10px] text-muted-foreground">{room.category.name}</span>
+            )}
+            {room.category && room.category.capacity > 1 && (
+              <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-0.5" data-testid={`text-capacity-${room.roomNumber}`}>
+                <BedDouble className="h-2.5 w-2.5" />
+                {room.category.capacity}
+              </span>
+            )}
+          </div>
           {room.guest && (
             <div className="flex items-center gap-1 mt-0.5">
               <User className="h-3 w-3 text-muted-foreground" />
