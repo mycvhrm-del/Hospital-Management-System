@@ -377,7 +377,7 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
                 data-testid={`button-quick-book-${room.roomNumber}`}
               >
                 <Calendar className="h-3.5 w-3.5 mr-2" />
-                Хурдан захиалга
+                Захиалга үүсгэх
               </Button>
               <Separator />
               <p className="text-xs font-medium text-muted-foreground">Өрөөний удирдлага</p>
@@ -895,7 +895,7 @@ export default function RoomGridPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle data-testid="text-quick-book-title">
-              Хурдан захиалга - Өрөө {quickBookRoom?.roomNumber}
+              Захиалга үүсгэх - Өрөө {quickBookRoom?.roomNumber}
             </DialogTitle>
             <DialogDescription>
               {quickBookRoom?.category?.name} - {quickBookRoom?.category && Number(quickBookRoom.category.basePrice).toLocaleString()}₮/хоног
