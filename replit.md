@@ -41,7 +41,7 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - `/daily-schedule` - Daily treatment schedule showing all treatments for a selected date with complete/mark done actions and low stock alerts
 - `/bookings` - Bookings list with search, status filter, create booking dialog with service selection, treatment plan management per booking
 - `/sales` - Sales page showing CHECKED_IN and CHECKED_OUT bookings with revenue summary cards, payment and checkout actions
-- `/housekeeping` - Housekeeping page showing rooms needing cleaning (CLEANING status) with "Mark as Clean" action
+- `/housekeeping` - Full housekeeping workflow: CLEANING → CLEANING_IN_PROGRESS → INSPECTED → AVAILABLE; separate sections per stage + OOO + OOS; 6-stat header cards; Section components per stage
 - `/services` - Services/Packages CRUD (tabs: All/Service/Package). Service creation is separate from Package creation: services have name/price/materials (BOM), packages have name/price and a searchable list of included services from existing SERVICE records. Edit routes to correct dialog by type.
 - `/billing` - Family billing overview (aggregated by family groups)
 - `/inventory` - Inventory management with CRUD, purchase history, low stock warnings

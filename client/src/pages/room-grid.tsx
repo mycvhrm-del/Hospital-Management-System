@@ -7,7 +7,8 @@ import { Link } from "wouter";
 import {
   BedDouble, User, Phone, Calendar, CreditCard, Crown,
   CheckCircle, Clock, Sparkles, LogOut, ArrowRight, FileText,
-  Banknote, CheckCheck,
+  Banknote, CheckCheck, AlertTriangle, WrenchIcon, MinusCircle,
+  ShieldCheck, PlayCircle, CalendarCheck,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -36,7 +37,7 @@ interface RoomGridItem {
   roomNumber: string;
   floor: string;
   categoryId: string;
-  status: "AVAILABLE" | "OCCUPIED" | "PENDING" | "CLEANING";
+  status: "AVAILABLE" | "OCCUPIED" | "PENDING" | "CLEANING" | "CLEANING_IN_PROGRESS" | "INSPECTED" | "OUT_OF_ORDER" | "OUT_OF_SERVICE";
   category: RoomCategory | null;
   activeBooking: Booking | null;
   guest: {
@@ -49,7 +50,13 @@ interface RoomGridItem {
   } | null;
 }
 
-const statusConfig = {
+const statusConfig: Record<string, {
+  label: string;
+  bgClass: string;
+  dotClass: string;
+  textClass: string;
+  icon: React.ElementType;
+}> = {
   AVAILABLE: {
     label: "Сул",
     bgClass: "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800",
@@ -72,11 +79,39 @@ const statusConfig = {
     icon: Clock,
   },
   CLEANING: {
-    label: "Цэвэрлэгээ",
+    label: "Цэвэрлэгээ хүлээгдэж буй",
     bgClass: "bg-slate-100 dark:bg-slate-800/40 border-slate-300 dark:border-slate-700",
     dotClass: "bg-slate-400",
     textClass: "text-slate-600 dark:text-slate-400",
     icon: Sparkles,
+  },
+  CLEANING_IN_PROGRESS: {
+    label: "Цэвэрлэж буй",
+    bgClass: "bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800",
+    dotClass: "bg-purple-500",
+    textClass: "text-purple-700 dark:text-purple-400",
+    icon: PlayCircle,
+  },
+  INSPECTED: {
+    label: "Шалгагдсан",
+    bgClass: "bg-teal-50 dark:bg-teal-950/40 border-teal-200 dark:border-teal-800",
+    dotClass: "bg-teal-500",
+    textClass: "text-teal-700 dark:text-teal-400",
+    icon: ShieldCheck,
+  },
+  OUT_OF_ORDER: {
+    label: "Засвартай (OOO)",
+    bgClass: "bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-700",
+    dotClass: "bg-red-600",
+    textClass: "text-red-700 dark:text-red-400",
+    icon: WrenchIcon,
+  },
+  OUT_OF_SERVICE: {
+    label: "Хаалттай (OOS)",
+    bgClass: "bg-zinc-100 dark:bg-zinc-800/40 border-zinc-300 dark:border-zinc-700",
+    dotClass: "bg-zinc-500",
+    textClass: "text-zinc-600 dark:text-zinc-400",
+    icon: MinusCircle,
   },
 };
 
@@ -110,7 +145,12 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
   const { toast } = useToast();
   const isConfirmedPending = room.status === "PENDING" && room.activeBooking?.status === "CONFIRMED";
   const isNoShow = room.activeBooking?.status === "NO_SHOW";
-  const config = isNoShow ? noShowConfig : isConfirmedPending ? confirmedConfig : statusConfig[room.status];
+  const config = isNoShow ? noShowConfig : isConfirmedPending ? confirmedConfig : (statusConfig[room.status] ?? statusConfig.AVAILABLE);
+
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+  const isDueOut = room.status === "OCCUPIED" && room.activeBooking &&
+    new Date(new Date(room.activeBooking.checkOut).setHours(0, 0, 0, 0)).getTime() === todayMidnight.getTime();
   const StatusIcon = config.icon;
 
   const checkinMutation = useMutation({
@@ -170,6 +210,12 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
               </span>
               {room.guest.isVip && <Crown className="h-3 w-3 text-amber-500" />}
             </div>
+          )}
+          {isDueOut && (
+            <span className="text-[10px] font-semibold text-orange-600 dark:text-orange-400 flex items-center gap-1">
+              <CalendarCheck className="h-3 w-3" />
+              Гарах дөхсөн
+            </span>
           )}
         </button>
       </PopoverTrigger>
@@ -337,22 +383,122 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
                 <Calendar className="h-3.5 w-3.5 mr-2" />
                 Хурдан захиалга
               </Button>
+              <Separator />
+              <p className="text-xs font-medium text-muted-foreground">Өрөөний удирдлага</p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-red-600 border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950"
+                onClick={() => statusChangeMutation.mutate("OUT_OF_ORDER")}
+                disabled={statusChangeMutation.isPending}
+                data-testid={`button-ooo-${room.roomNumber}`}
+              >
+                <WrenchIcon className="h-3.5 w-3.5 mr-2" />
+                Засварт оруулах (OOO)
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full"
+                onClick={() => statusChangeMutation.mutate("OUT_OF_SERVICE")}
+                disabled={statusChangeMutation.isPending}
+                data-testid={`button-oos-${room.roomNumber}`}
+              >
+                <MinusCircle className="h-3.5 w-3.5 mr-2" />
+                Хаалттай болгох (OOS)
+              </Button>
             </div>
           )}
 
           {room.status === "CLEANING" && (
             <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Цэвэрлэгээ хийгдэж байна</p>
+              <p className="text-sm text-muted-foreground">Цэвэрлэгээ хийгдэхийг хүлээж байна</p>
+              <Button
+                size="sm"
+                className="w-full"
+                onClick={() => statusChangeMutation.mutate("CLEANING_IN_PROGRESS")}
+                disabled={statusChangeMutation.isPending}
+                data-testid={`button-start-clean-${room.roomNumber}`}
+              >
+                <PlayCircle className="h-3.5 w-3.5 mr-2" />
+                {statusChangeMutation.isPending ? "Шинэчилж байна..." : "Цэвэрлэж эхлэх"}
+              </Button>
+            </div>
+          )}
+
+          {room.status === "CLEANING_IN_PROGRESS" && (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground text-purple-600 dark:text-purple-400">Цэвэрлэгч одоо ажиллаж байна</p>
+              <Button
+                size="sm"
+                className="w-full"
+                onClick={() => statusChangeMutation.mutate("INSPECTED")}
+                disabled={statusChangeMutation.isPending}
+                data-testid={`button-finish-clean-${room.roomNumber}`}
+              >
+                <ShieldCheck className="h-3.5 w-3.5 mr-2" />
+                {statusChangeMutation.isPending ? "Шинэчилж байна..." : "Цэвэрлэгээ дуусгах"}
+              </Button>
+            </div>
+          )}
+
+          {room.status === "INSPECTED" && (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground text-teal-600 dark:text-teal-400">Менежерийн шалгалт хүлээж байна</p>
+              <Button
+                size="sm"
+                className="w-full"
+                onClick={() => statusChangeMutation.mutate("AVAILABLE")}
+                disabled={statusChangeMutation.isPending}
+                data-testid={`button-approve-${room.roomNumber}`}
+              >
+                <CheckCheck className="h-3.5 w-3.5 mr-2" />
+                {statusChangeMutation.isPending ? "Шинэчилж байна..." : "Баталгаажуулах — Сул болгох"}
+              </Button>
+            </div>
+          )}
+
+          {room.status === "OUT_OF_ORDER" && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-red-600 dark:text-red-400">⚠️ Засвар хийгдэж байна</p>
+              <p className="text-xs text-muted-foreground">Борлуулах боломжгүй өрөө</p>
               <Button
                 size="sm"
                 variant="outline"
                 className="w-full"
                 onClick={() => statusChangeMutation.mutate("AVAILABLE")}
                 disabled={statusChangeMutation.isPending}
-                data-testid={`button-clean-done-${room.roomNumber}`}
+                data-testid={`button-repair-done-${room.roomNumber}`}
               >
                 <CheckCircle className="h-3.5 w-3.5 mr-2" />
-                {statusChangeMutation.isPending ? "Шинэчилж байна..." : "Цэвэрлэгээ дууссан"}
+                {statusChangeMutation.isPending ? "Шинэчилж байна..." : "Засвар дуусгах — Нээх"}
+              </Button>
+            </div>
+          )}
+
+          {room.status === "OUT_OF_SERVICE" && (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Өрөө түр хаалттай (шаардлага гарвал нээх боломжтой)</p>
+              <Button
+                size="sm"
+                className="w-full"
+                onClick={() => statusChangeMutation.mutate("AVAILABLE")}
+                disabled={statusChangeMutation.isPending}
+                data-testid={`button-reopen-${room.roomNumber}`}
+              >
+                <CheckCircle className="h-3.5 w-3.5 mr-2" />
+                {statusChangeMutation.isPending ? "Шинэчилж байна..." : "Нээх — Захиалгад бэлэн болгох"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-red-600 border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950"
+                onClick={() => statusChangeMutation.mutate("OUT_OF_ORDER")}
+                disabled={statusChangeMutation.isPending}
+                data-testid={`button-oos-to-ooo-${room.roomNumber}`}
+              >
+                <WrenchIcon className="h-3.5 w-3.5 mr-2" />
+                Засварт оруулах (OOO)
               </Button>
             </div>
           )}
@@ -404,14 +550,26 @@ export default function RoomGridPage() {
 
   const sortedRooms = [...filteredRooms].sort((a, b) => a.roomNumber.localeCompare(b.roomNumber));
 
+  const todayMidnightForStats = new Date();
+  todayMidnightForStats.setHours(0, 0, 0, 0);
+
   const stats = {
     total: roomGrid.length,
+    sellable: roomGrid.filter(r => r.status !== "OUT_OF_ORDER").length,
     available: roomGrid.filter((r) => r.status === "AVAILABLE").length,
     occupied: roomGrid.filter((r) => r.status === "OCCUPIED").length,
+    dueOut: roomGrid.filter((r) =>
+      r.status === "OCCUPIED" && r.activeBooking &&
+      new Date(new Date(r.activeBooking.checkOut).setHours(0, 0, 0, 0)).getTime() === todayMidnightForStats.getTime()
+    ).length,
     pending: roomGrid.filter((r) => r.status === "PENDING" && r.activeBooking?.status !== "CONFIRMED" && r.activeBooking?.status !== "NO_SHOW").length,
     confirmed: roomGrid.filter((r) => r.status === "PENDING" && r.activeBooking?.status === "CONFIRMED").length,
     noShow: roomGrid.filter((r) => r.activeBooking?.status === "NO_SHOW").length,
     cleaning: roomGrid.filter((r) => r.status === "CLEANING").length,
+    cleaningInProgress: roomGrid.filter((r) => r.status === "CLEANING_IN_PROGRESS").length,
+    inspected: roomGrid.filter((r) => r.status === "INSPECTED").length,
+    outOfOrder: roomGrid.filter((r) => r.status === "OUT_OF_ORDER").length,
+    outOfService: roomGrid.filter((r) => r.status === "OUT_OF_SERVICE").length,
   };
 
   const form = useForm<QuickBookingValues>({
@@ -534,30 +692,54 @@ export default function RoomGridPage() {
         </p>
       </div>
 
-      <div className="flex items-center gap-6 flex-wrap text-sm">
+      <div className="flex items-center gap-4 flex-wrap text-xs">
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-full bg-emerald-500" />
+          <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
           <span className="text-muted-foreground">Сул ({stats.available})</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-full bg-rose-500" />
+          <div className="h-2.5 w-2.5 rounded-full bg-rose-500" />
           <span className="text-muted-foreground">Дүүрсэн ({stats.occupied})</span>
         </div>
+        {stats.dueOut > 0 && (
+          <div className="flex items-center gap-1.5">
+            <CalendarCheck className="h-3 w-3 text-orange-500" />
+            <span className="text-orange-600 font-medium">Гарах дөхсөн ({stats.dueOut})</span>
+          </div>
+        )}
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-full bg-amber-500" />
+          <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
           <span className="text-muted-foreground">Хүлээгдэж буй ({stats.pending})</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-full bg-blue-500" />
+          <div className="h-2.5 w-2.5 rounded-full bg-blue-500" />
           <span className="text-muted-foreground">Баталгаажсан ({stats.confirmed})</span>
         </div>
+        {stats.noShow > 0 && (
+          <div className="flex items-center gap-1.5">
+            <div className="h-2.5 w-2.5 rounded-full bg-orange-500" />
+            <span className="text-muted-foreground">Ирээгүй ({stats.noShow})</span>
+          </div>
+        )}
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-full bg-orange-500" />
-          <span className="text-muted-foreground">Ирээгүй ({stats.noShow})</span>
+          <div className="h-2.5 w-2.5 rounded-full bg-slate-400" />
+          <span className="text-muted-foreground">Цэвэрлэгээ ({stats.cleaning + stats.cleaningInProgress + stats.inspected})</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-full bg-slate-400" />
-          <span className="text-muted-foreground">Цэвэрлэгээ ({stats.cleaning})</span>
+        {stats.outOfOrder > 0 && (
+          <div className="flex items-center gap-1.5">
+            <div className="h-2.5 w-2.5 rounded-full bg-red-600" />
+            <span className="text-red-600 font-medium">Засвартай OOO ({stats.outOfOrder})</span>
+          </div>
+        )}
+        {stats.outOfService > 0 && (
+          <div className="flex items-center gap-1.5">
+            <div className="h-2.5 w-2.5 rounded-full bg-zinc-500" />
+            <span className="text-muted-foreground">Хаалттай OOS ({stats.outOfService})</span>
+          </div>
+        )}
+        <div className="ml-auto flex items-center gap-1 text-muted-foreground border-l pl-4">
+          <span>Борлуулах боломжтой:</span>
+          <span className="font-semibold text-foreground">{stats.sellable}/{stats.total}</span>
         </div>
       </div>
 

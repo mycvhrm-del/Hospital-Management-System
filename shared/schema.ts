@@ -3,7 +3,16 @@ import { pgTable, text, varchar, integer, decimal, boolean, timestamp, json, pgE
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const roomStatusEnum = pgEnum("room_status", ["AVAILABLE", "OCCUPIED", "PENDING", "CLEANING"]);
+export const roomStatusEnum = pgEnum("room_status", [
+  "AVAILABLE",
+  "OCCUPIED",
+  "PENDING",
+  "CLEANING",
+  "CLEANING_IN_PROGRESS",
+  "INSPECTED",
+  "OUT_OF_ORDER",
+  "OUT_OF_SERVICE",
+]);
 export const bookingStatusEnum = pgEnum("booking_status", ["PENDING", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELLED", "NO_SHOW"]);
 
 export const roomCategories = pgTable("room_categories", {

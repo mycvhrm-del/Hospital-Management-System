@@ -65,7 +65,7 @@ const roomFormSchema = z.object({
   roomNumber: z.string().min(1, "Өрөөний дугаар оруулна уу"),
   floor: z.string().min(1, "Давхар сонгоно уу"),
   categoryId: z.string().min(1, "Ангилал сонгоно уу"),
-  status: z.enum(["AVAILABLE", "OCCUPIED", "PENDING", "CLEANING"]),
+  status: z.enum(["AVAILABLE", "OCCUPIED", "PENDING", "CLEANING", "CLEANING_IN_PROGRESS", "INSPECTED", "OUT_OF_ORDER", "OUT_OF_SERVICE"]),
 });
 
 const floorFormSchema = z.object({
