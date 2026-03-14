@@ -193,7 +193,7 @@ export default function HousekeepingPage() {
     <div className="p-6 space-y-8" data-testid="page-housekeeping">
       <div>
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-housekeeping-title">
-          Цэвэрлэгээний удирдлага
+          Өрөөний удирдлага
         </h1>
         <p className="text-sm text-muted-foreground">
           Цэвэрлэгээний урсгал: Хүлээгдэж буй → Цэвэрлэж буй → Шалгагдсан → Сул

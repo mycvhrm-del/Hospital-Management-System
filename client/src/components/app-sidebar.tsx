@@ -56,7 +56,7 @@ const navGroups: NavGroup[] = [
     label: "Үйл ажиллагаа",
     icon: Sparkles,
     items: [
-      { title: "Цэвэрлэгээ", url: "/housekeeping", icon: Sparkles },
+      { title: "Засвар үйлчилгээ", url: "/housekeeping", icon: Sparkles },
       { title: "Агуулах", url: "/inventory", icon: Warehouse },
     ],
   },
