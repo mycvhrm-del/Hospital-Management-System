@@ -2,6 +2,29 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertRoomCategorySchema, insertFloorSchema, insertRoomSchema, insertGuestSchema, insertBookingSchema, insertTransactionSchema, insertServiceSchema, insertInventorySchema, insertInventoryPurchaseSchema, insertStaffSchema } from "@shared/schema";
+function logJob(message: string) {
+  const t = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
+  console.log(`${t} [noshow-job] ${message}`);
+}
+
+export async function runNoShowJob() {
+  try {
+    const candidates = await storage.getNoShowCandidates();
+    if (candidates.length === 0) return;
+    for (const booking of candidates) {
+      await storage.updateBookingStatus(booking.id, "NO_SHOW");
+      await storage.createAuditLog({
+        userId: "system",
+        action: "NO_SHOW",
+        description: `Захиалга #${booking.id.slice(-6)} — зочин checkIn өдөр (${new Date(booking.checkIn).toLocaleDateString("mn-MN")}) ирсэнгүй`,
+        targetTable: "bookings",
+      });
+    }
+    logJob(`${candidates.length} захиалга NO_SHOW болов`);
+  } catch (err) {
+    logJob(`Алдаа: ${err}`);
+  }
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -340,7 +363,7 @@ export async function registerRoutes(
     }
   });
 
-  const validBookingStatuses = ["PENDING", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELLED"];
+  const validBookingStatuses = ["PENDING", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELLED", "NO_SHOW"];
 
   app.patch("/api/bookings/:id/status", async (req, res) => {
     const { status } = req.body;
@@ -351,6 +374,11 @@ export async function registerRoutes(
     const existing = await storage.getBooking(req.params.id);
     if (!existing) return res.status(404).json({ message: "Booking not found" });
     const previousStatus = existing.status;
+
+    // NO_SHOW статустай захиалгаас зөвхөн CHECKED_IN (оройтож ирсэн) эсвэл CANCELLED рүү шилжих боломжтой
+    if (previousStatus === "NO_SHOW" && status !== "CHECKED_IN" && status !== "CANCELLED") {
+      return res.status(400).json({ message: "Ирээгүй захиалгаас зөвхөн бүртгэх эсвэл цуцлах боломжтой" });
+    }
 
     if (status === "CHECKED_OUT") {
       const totalAmount = Number(existing.totalAmount);
@@ -367,6 +395,7 @@ export async function registerRoutes(
     if (!booking) return res.status(404).json({ message: "Booking not found" });
 
     if (status === "CHECKED_IN") {
+      // NO_SHOW-с CHECKED_IN: оройтож ирсэн зочин — өрөө OCCUPIED болно
       await storage.updateRoom(booking.roomId, { status: "OCCUPIED" });
     } else if (status === "CHECKED_OUT") {
       const now = new Date();
@@ -388,6 +417,7 @@ export async function registerRoutes(
       if (previousStatus === "CHECKED_IN") {
         await storage.updateRoom(booking.roomId, { status: "CLEANING" });
       } else {
+        // NO_SHOW эсвэл PENDING/CONFIRMED-с цуцлахад өрөө AVAILABLE болно
         const otherActive = await storage.getActiveBookingForRoom(booking.roomId);
         if (otherActive && otherActive.id !== booking.id) {
           if (otherActive.status === "CHECKED_IN") {

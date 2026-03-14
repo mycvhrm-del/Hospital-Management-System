@@ -98,10 +98,19 @@ const confirmedConfig = {
   icon: CheckCircle,
 };
 
+const noShowConfig = {
+  label: "Ирээгүй",
+  bgClass: "bg-orange-50 dark:bg-orange-950/40 border-orange-300 dark:border-orange-700",
+  dotClass: "bg-orange-500",
+  textClass: "text-orange-700 dark:text-orange-400",
+  icon: Clock,
+};
+
 function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGridItem; onQuickBook: (room: RoomGridItem) => void; onPayment: (room: RoomGridItem) => void; onCheckout: (room: RoomGridItem) => void }) {
   const { toast } = useToast();
   const isConfirmedPending = room.status === "PENDING" && room.activeBooking?.status === "CONFIRMED";
-  const config = isConfirmedPending ? confirmedConfig : statusConfig[room.status];
+  const isNoShow = room.activeBooking?.status === "NO_SHOW";
+  const config = isNoShow ? noShowConfig : isConfirmedPending ? confirmedConfig : statusConfig[room.status];
   const StatusIcon = config.icon;
 
   const checkinMutation = useMutation({
@@ -281,29 +290,35 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
               </div>
               <Separator />
               <p className="text-xs text-muted-foreground">
-                {room.activeBooking.status === "PENDING" ? "Урьдчилгаа төлбөр хүлээгдэж байна" : "Баталгаажсан - Check-in хийх боломжтой"}
+                {room.activeBooking.status === "NO_SHOW"
+                  ? "⚠️ Зочин ирээгүй — Оройтлын check-in эсвэл цуцлах"
+                  : room.activeBooking.status === "PENDING"
+                  ? "Урьдчилгаа төлбөр хүлээгдэж байна"
+                  : "Баталгаажсан - Check-in хийх боломжтой"}
               </p>
               <div className="flex flex-col gap-2">
-                <Button
-                  size="sm"
-                  className="w-full"
-                  onClick={() => onPayment(room)}
-                  data-testid={`button-payment-${room.roomNumber}`}
-                >
-                  <Banknote className="h-3.5 w-3.5 mr-2" />
-                  Төлбөр хийх
-                </Button>
-                {room.activeBooking.status === "CONFIRMED" && (
+                {room.activeBooking.status !== "NO_SHOW" && (
                   <Button
                     size="sm"
-                    variant="outline"
+                    className="w-full"
+                    onClick={() => onPayment(room)}
+                    data-testid={`button-payment-${room.roomNumber}`}
+                  >
+                    <Banknote className="h-3.5 w-3.5 mr-2" />
+                    Төлбөр хийх
+                  </Button>
+                )}
+                {(room.activeBooking.status === "CONFIRMED" || room.activeBooking.status === "NO_SHOW") && (
+                  <Button
+                    size="sm"
+                    variant={room.activeBooking.status === "NO_SHOW" ? "default" : "outline"}
                     className="w-full"
                     onClick={() => checkinMutation.mutate()}
                     disabled={checkinMutation.isPending}
                     data-testid={`button-checkin-${room.roomNumber}`}
                   >
                     <CheckCheck className="h-3.5 w-3.5 mr-2" />
-                    {checkinMutation.isPending ? "Check-in хийж байна..." : "Check-in хийх"}
+                    {checkinMutation.isPending ? "Check-in хийж байна..." : "Оройтлын Check-in хийх"}
                   </Button>
                 )}
               </div>
@@ -393,8 +408,9 @@ export default function RoomGridPage() {
     total: roomGrid.length,
     available: roomGrid.filter((r) => r.status === "AVAILABLE").length,
     occupied: roomGrid.filter((r) => r.status === "OCCUPIED").length,
-    pending: roomGrid.filter((r) => r.status === "PENDING" && r.activeBooking?.status !== "CONFIRMED").length,
+    pending: roomGrid.filter((r) => r.status === "PENDING" && r.activeBooking?.status !== "CONFIRMED" && r.activeBooking?.status !== "NO_SHOW").length,
     confirmed: roomGrid.filter((r) => r.status === "PENDING" && r.activeBooking?.status === "CONFIRMED").length,
+    noShow: roomGrid.filter((r) => r.activeBooking?.status === "NO_SHOW").length,
     cleaning: roomGrid.filter((r) => r.status === "CLEANING").length,
   };
 
@@ -534,6 +550,10 @@ export default function RoomGridPage() {
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded-full bg-blue-500" />
           <span className="text-muted-foreground">Баталгаажсан ({stats.confirmed})</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="h-3 w-3 rounded-full bg-orange-500" />
+          <span className="text-muted-foreground">Ирээгүй ({stats.noShow})</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="h-3 w-3 rounded-full bg-slate-400" />

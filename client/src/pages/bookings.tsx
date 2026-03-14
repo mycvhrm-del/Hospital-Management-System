@@ -65,6 +65,7 @@ const statusLabels: Record<string, string> = {
   CHECKED_IN: "Бүртгэлтэй",
   CHECKED_OUT: "Гарсан",
   CANCELLED: "Цуцлагдсан",
+  NO_SHOW: "Ирээгүй",
 };
 
 const statusColors: Record<string, string> = {
@@ -73,6 +74,7 @@ const statusColors: Record<string, string> = {
   CHECKED_IN: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   CHECKED_OUT: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
   CANCELLED: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  NO_SHOW: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
 };
 
 const newGuestSchema = z.object({
@@ -454,7 +456,7 @@ export default function BookingsPage() {
       toast({ title: "Алдаа", description: err.message, variant: "destructive" });
     },
   });
-  const canCancel = (status: string) => status === "PENDING" || status === "CONFIRMED";
+  const canCancel = (status: string) => status === "PENDING" || status === "CONFIRMED" || status === "NO_SHOW";
 
   const bookingsOnly = allBookings.filter(b => b.status !== "CHECKED_IN" && b.status !== "CHECKED_OUT");
 
@@ -471,14 +473,18 @@ export default function BookingsPage() {
     return true;
   });
 
-  const sorted = [...filtered].sort((a, b) => new Date(b.checkIn).getTime() - new Date(a.checkIn).getTime());
+  const sorted = [...filtered].sort((a, b) => {
+    if (a.status === "NO_SHOW" && b.status !== "NO_SHOW") return -1;
+    if (b.status === "NO_SHOW" && a.status !== "NO_SHOW") return 1;
+    return new Date(b.checkIn).getTime() - new Date(a.checkIn).getTime();
+  });
   const today = new Date().toISOString().split("T")[0];
 
-  const canEdit = (status: string) => status !== "CHECKED_OUT" && status !== "CANCELLED";
-  const canDelete = (status: string) => status !== "CHECKED_IN";
-  const canCheckin = (status: string) => status === "CONFIRMED" || status === "PENDING";
+  const canEdit = (status: string) => status !== "CHECKED_OUT" && status !== "CANCELLED" && status !== "NO_SHOW";
+  const canDelete = (status: string) => status !== "CHECKED_IN" && status !== "NO_SHOW";
+  const canCheckin = (status: string) => status === "CONFIRMED" || status === "PENDING" || status === "NO_SHOW";
   const canCheckout = (status: string) => status === "CHECKED_IN";
-  const canPay = (status: string) => status !== "CHECKED_OUT" && status !== "CANCELLED";
+  const canPay = (status: string) => status !== "CHECKED_OUT" && status !== "CANCELLED" && status !== "NO_SHOW";
 
   return (
     <div className="p-6 space-y-6" data-testid="page-bookings">
@@ -516,6 +522,7 @@ export default function BookingsPage() {
             <SelectItem value="ALL">Бүгд ({bookingsOnly.length})</SelectItem>
             <SelectItem value="PENDING">Хүлээгдэж буй</SelectItem>
             <SelectItem value="CONFIRMED">Баталгаажсан</SelectItem>
+            <SelectItem value="NO_SHOW">⚠️ Ирээгүй ({bookingsOnly.filter(b => b.status === "NO_SHOW").length})</SelectItem>
             <SelectItem value="CANCELLED">Цуцлагдсан</SelectItem>
           </SelectContent>
         </Select>

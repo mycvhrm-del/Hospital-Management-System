@@ -104,6 +104,7 @@ export interface IStorage {
 
   getTransaction(id: string): Promise<Transaction | undefined>;
   deleteTransaction(id: string): Promise<boolean>;
+  getNoShowCandidates(): Promise<Booking[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -237,7 +238,8 @@ export class DatabaseStorage implements IStorage {
         or(
           eq(bookings.status, "CONFIRMED"),
           eq(bookings.status, "CHECKED_IN"),
-          eq(bookings.status, "PENDING")
+          eq(bookings.status, "PENDING"),
+          eq(bookings.status, "NO_SHOW")
         )
       )
     );
@@ -496,6 +498,20 @@ export class DatabaseStorage implements IStorage {
   async deleteTransaction(id: string): Promise<boolean> {
     const result = await db.delete(transactions).where(eq(transactions.id, id)).returning();
     return result.length > 0;
+  }
+
+  async getNoShowCandidates(): Promise<Booking[]> {
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return db.select().from(bookings).where(
+      and(
+        lt(bookings.checkIn, todayMidnight),
+        or(
+          eq(bookings.status, "PENDING"),
+          eq(bookings.status, "CONFIRMED")
+        )
+      )
+    );
   }
 }
 

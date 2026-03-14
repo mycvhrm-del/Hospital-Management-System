@@ -4,7 +4,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 export const roomStatusEnum = pgEnum("room_status", ["AVAILABLE", "OCCUPIED", "PENDING", "CLEANING"]);
-export const bookingStatusEnum = pgEnum("booking_status", ["PENDING", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELLED"]);
+export const bookingStatusEnum = pgEnum("booking_status", ["PENDING", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELLED", "NO_SHOW"]);
 
 export const roomCategories = pgTable("room_categories", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
