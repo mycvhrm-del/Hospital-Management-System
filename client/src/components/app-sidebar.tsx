@@ -1,34 +1,148 @@
+import { useState } from "react";
 import { useLocation, Link } from "wouter";
-import { LayoutDashboard, Settings, BedDouble, Users, CreditCard, Grid3X3, CalendarDays, Stethoscope, Warehouse, CalendarRange, ShoppingCart, Sparkles, CalendarClock } from "lucide-react";
+import {
+  LayoutDashboard, Settings, BedDouble, Users, CreditCard, Grid3X3,
+  CalendarDays, Stethoscope, Warehouse, CalendarRange, ShoppingCart,
+  Sparkles, CalendarClock, ChevronRight, Banknote,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarHeader,
+  useSidebar,
 } from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
 
-const mainItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Өрөөнүүд", url: "/room-grid", icon: Grid3X3 },
-  { title: "Хуваарь", url: "/timeline", icon: CalendarRange },
-  { title: "Зочид", url: "/guests", icon: Users },
-  { title: "Захиалга", url: "/bookings", icon: CalendarDays },
-  { title: "Борлуулалт", url: "/sales", icon: ShoppingCart },
-  { title: "Эмчилгээ", url: "/services", icon: Stethoscope },
-  { title: "Өдрийн хуваарь", url: "/daily-schedule", icon: CalendarClock },
-  { title: "Төлбөр", url: "/billing", icon: CreditCard },
-  { title: "Цэвэрлэгээ", url: "/housekeeping", icon: Sparkles },
-  { title: "Агуулах", url: "/inventory", icon: Warehouse },
+type NavItem = { title: string; url: string; icon: React.ElementType };
+type NavGroup = { label: string; icon: React.ElementType; items: NavItem[] };
+
+const navGroups: NavGroup[] = [
+  {
+    label: "Хяналт",
+    icon: LayoutDashboard,
+    items: [
+      { title: "Dashboard", url: "/", icon: LayoutDashboard },
+      { title: "Өрөөний самбар", url: "/room-grid", icon: Grid3X3 },
+      { title: "Долоо хоногийн хуваарь", url: "/timeline", icon: CalendarRange },
+    ],
+  },
+  {
+    label: "Захиалга & Зочид",
+    icon: CalendarDays,
+    items: [
+      { title: "Захиалга", url: "/bookings", icon: CalendarDays },
+      { title: "Зочид", url: "/guests", icon: Users },
+      { title: "Борлуулалт", url: "/sales", icon: ShoppingCart },
+      { title: "Төлбөр", url: "/billing", icon: Banknote },
+    ],
+  },
+  {
+    label: "Эмнэлэг",
+    icon: Stethoscope,
+    items: [
+      { title: "Үйлчилгээ & Багц", url: "/services", icon: Stethoscope },
+      { title: "Өдрийн хуваарь", url: "/daily-schedule", icon: CalendarClock },
+    ],
+  },
+  {
+    label: "Үйл ажиллагаа",
+    icon: Sparkles,
+    items: [
+      { title: "Цэвэрлэгээ", url: "/housekeeping", icon: Sparkles },
+      { title: "Агуулах", url: "/inventory", icon: Warehouse },
+    ],
+  },
 ];
 
-const settingsItems = [
+const systemItems: NavItem[] = [
   { title: "Тохиргоо", url: "/settings", icon: Settings },
 ];
+
+function NavGroupItem({
+  group,
+  isActive,
+}: {
+  group: NavGroup;
+  isActive: (url: string) => boolean;
+}) {
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
+  const groupActive = group.items.some((item) => isActive(item.url));
+  const [open, setOpen] = useState(groupActive);
+
+  if (isCollapsed) {
+    return (
+      <>
+        {group.items.map((item) => (
+          <SidebarMenuItem key={item.url}>
+            <SidebarMenuButton
+              asChild
+              data-active={isActive(item.url)}
+              title={item.title}
+            >
+              <Link
+                href={item.url}
+                data-testid={`nav-${item.title.toLowerCase()}`}
+              >
+                <item.icon className="h-4 w-4" />
+                <span>{item.title}</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ))}
+      </>
+    );
+  }
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        data-active={groupActive && !open}
+        className="w-full"
+        onClick={() => setOpen((v) => !v)}
+        data-testid={`nav-group-${group.label}`}
+      >
+        <group.icon className="h-4 w-4" />
+        <span className="font-medium">{group.label}</span>
+        <ChevronRight
+          className={cn(
+            "ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
+            open && "rotate-90"
+          )}
+        />
+      </SidebarMenuButton>
+
+      {open && (
+        <SidebarMenuSub>
+          {group.items.map((item) => (
+            <SidebarMenuSubItem key={item.url}>
+              <SidebarMenuSubButton
+                asChild
+                isActive={isActive(item.url)}
+              >
+                <Link
+                  href={item.url}
+                  data-testid={`nav-${item.title.toLowerCase()}`}
+                >
+                  <item.icon className="h-3.5 w-3.5" />
+                  <span>{item.title}</span>
+                </Link>
+              </SidebarMenuSubButton>
+            </SidebarMenuSubItem>
+          ))}
+        </SidebarMenuSub>
+      )}
+    </SidebarMenuItem>
+  );
+}
 
 export function AppSidebar() {
   const [location] = useLocation();
@@ -51,33 +165,32 @@ export function AppSidebar() {
           </div>
         </div>
       </SidebarHeader>
+
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Үндсэн</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild data-active={isActive(item.url)}>
-                    <Link href={item.url} data-testid={`nav-${item.title.toLowerCase()}`}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+              {navGroups.map((group) => (
+                <NavGroupItem
+                  key={group.label}
+                  group={group}
+                  isActive={isActive}
+                />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Систем</SidebarGroupLabel>
+        <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
             <SidebarMenu>
-              {settingsItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
+              {systemItems.map((item) => (
+                <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild data-active={isActive(item.url)}>
-                    <Link href={item.url} data-testid={`nav-${item.title.toLowerCase()}`}>
+                    <Link
+                      href={item.url}
+                      data-testid={`nav-${item.title.toLowerCase()}`}
+                    >
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </Link>
