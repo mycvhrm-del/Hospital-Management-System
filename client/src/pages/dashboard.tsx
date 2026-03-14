@@ -123,7 +123,7 @@ export default function Dashboard() {
               <div className="border-t pt-2 mt-2 flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Борлуулах боломжтой нийт:</span>
                 <span className="font-bold">
-                  {stats ? stats.rooms.total - (stats.rooms.outOfOrder ?? 0) : "—"}
+                  {stats ? stats.rooms.total - (stats.rooms.outOfOrder ?? 0) - (stats.rooms.outOfService ?? 0) : "—"}
                   <span className="text-muted-foreground font-normal"> / {stats?.rooms.total ?? "—"}</span>
                 </span>
               </div>

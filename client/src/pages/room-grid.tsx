@@ -494,7 +494,7 @@ export default function RoomGridPage() {
 
   const stats = {
     total: roomGrid.length,
-    sellable: roomGrid.filter(r => r.status !== "OUT_OF_ORDER").length,
+    sellable: roomGrid.filter(r => r.status !== "OUT_OF_ORDER" && r.status !== "OUT_OF_SERVICE").length,
     available: roomGrid.filter((r) => r.status === "AVAILABLE").length,
     occupied: roomGrid.filter((r) => r.status === "OCCUPIED" || r.status === "DUE_OUT").length,
     dueOut: roomGrid.filter((r) => r.status === "DUE_OUT").length,
