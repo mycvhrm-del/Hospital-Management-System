@@ -852,6 +852,10 @@ export async function registerRoutes(
     const occupiedCount = allRooms.filter(r => r.status === "OCCUPIED").length;
     const pendingCount = allRooms.filter(r => r.status === "PENDING").length;
     const cleaningCount = allRooms.filter(r => r.status === "CLEANING").length;
+    const cleaningInProgressCount = allRooms.filter(r => r.status === "CLEANING_IN_PROGRESS").length;
+    const inspectedCount = allRooms.filter(r => r.status === "INSPECTED").length;
+    const outOfOrderCount = allRooms.filter(r => r.status === "OUT_OF_ORDER").length;
+    const outOfServiceCount = allRooms.filter(r => r.status === "OUT_OF_SERVICE").length;
 
     const today = new Date();
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -867,7 +871,17 @@ export async function registerRoutes(
     }
 
     res.json({
-      rooms: { total: allRooms.length, available: availableCount, occupied: occupiedCount, pending: pendingCount, cleaning: cleaningCount },
+      rooms: {
+        total: allRooms.length,
+        available: availableCount,
+        occupied: occupiedCount,
+        pending: pendingCount,
+        cleaning: cleaningCount,
+        cleaningInProgress: cleaningInProgressCount,
+        inspected: inspectedCount,
+        outOfOrder: outOfOrderCount,
+        outOfService: outOfServiceCount,
+      },
       todayRevenue,
       totalBookings: allBookings.length,
       activeBookings: allBookings.filter(b => b.status === "CHECKED_IN").length,

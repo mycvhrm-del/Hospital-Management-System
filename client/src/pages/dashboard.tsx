@@ -1,31 +1,47 @@
 import { useQuery } from "@tanstack/react-query";
-import { BedDouble, Layers, CheckCircle, AlertTriangle, DollarSign, CalendarDays } from "lucide-react";
+import {
+  BedDouble, Layers, CheckCircle, AlertTriangle, DollarSign, CalendarDays,
+  Sparkles, PlayCircle, ShieldCheck, WrenchIcon, MinusCircle,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 
 interface DashboardStats {
-  rooms: { total: number; available: number; occupied: number; pending: number; cleaning: number };
+  rooms: {
+    total: number;
+    available: number;
+    occupied: number;
+    pending: number;
+    cleaning: number;
+    cleaningInProgress: number;
+    inspected: number;
+    outOfOrder: number;
+    outOfService: number;
+  };
   todayRevenue: number;
   totalBookings: number;
   activeBookings: number;
 }
 
-const ROOM_COLORS: Record<string, string> = {
-  "Сул": "#22c55e",
-  "Дүүрсэн": "#ef4444",
-  "Хүлээгдэж буй": "#eab308",
-  "Цэвэрлэж буй": "#9ca3af",
-};
+const STATUS_CONFIG: { key: keyof DashboardStats["rooms"]; label: string; color: string; icon: React.ElementType; description: string }[] = [
+  { key: "available",          label: "Сул",              color: "#22c55e", icon: CheckCircle,  description: "Захиалгад бэлэн" },
+  { key: "occupied",           label: "Дүүрсэн",          color: "#ef4444", icon: AlertTriangle, description: "Одоогоор ашиглагдаж буй" },
+  { key: "pending",            label: "Хүлээгдэж буй",    color: "#eab308", icon: CalendarDays, description: "Захиалга баталгаажаагүй" },
+  { key: "cleaning",           label: "Цэвэрлэх хүлээлт", color: "#f97316", icon: Sparkles,      description: "Цэвэрлэгдэхийг хүлээж буй" },
+  { key: "cleaningInProgress", label: "Цэвэрлэж буй",     color: "#a855f7", icon: PlayCircle,    description: "Цэвэрлэгч ажиллаж байна" },
+  { key: "inspected",          label: "Шалгагдсан",       color: "#14b8a6", icon: ShieldCheck,   description: "Менежер шалгалт хүлээж буй" },
+  { key: "outOfOrder",         label: "Засвартай (OOO)",  color: "#dc2626", icon: WrenchIcon,    description: "Борлуулах боломжгүй" },
+  { key: "outOfService",       label: "Хаалттай (OOS)",   color: "#71717a", icon: MinusCircle,   description: "Түр хаалттай" },
+];
 
 export default function Dashboard() {
   const { data: stats } = useQuery<DashboardStats>({ queryKey: ["/api/dashboard/stats"] });
 
-  const roomChartData = stats ? [
-    { name: "Сул", value: stats.rooms.available },
-    { name: "Дүүрсэн", value: stats.rooms.occupied },
-    { name: "Хүлээгдэж буй", value: stats.rooms.pending },
-    { name: "Цэвэрлэж буй", value: stats.rooms.cleaning },
-  ].filter(d => d.value > 0) : [];
+  const roomChartData = stats
+    ? STATUS_CONFIG
+        .map(cfg => ({ name: cfg.label, value: (stats.rooms[cfg.key] ?? 0), color: cfg.color }))
+        .filter(d => d.value > 0)
+    : [];
 
   const statCards = [
     {
@@ -103,19 +119,19 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             {roomChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
+              <ResponsiveContainer width="100%" height={260}>
                 <PieChart>
                   <Pie
                     data={roomChartData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
+                    innerRadius={55}
+                    outerRadius={85}
                     paddingAngle={3}
                     dataKey="value"
                   >
                     {roomChartData.map((entry) => (
-                      <Cell key={entry.name} fill={ROOM_COLORS[entry.name] || "#666"} />
+                      <Cell key={entry.name} fill={entry.color} />
                     ))}
                   </Pie>
                   <Tooltip formatter={(value: number) => `${value} өрөө`} />
@@ -130,28 +146,33 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Тавтай морил</CardTitle>
+            <CardTitle className="text-base">Өрөөний статусын тайлбар</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Сувиллын ERP системд тавтай морилно уу. Зүүн талын цэснээс бүх модулиудыг удирдаарай.
-            </p>
-            <div className="mt-4 space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-green-500" />
-                <span>Сул — захиалгад бэлэн</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-red-500" />
-                <span>Дүүрсэн — зочин байгаа</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                <span>Хүлээгдэж буй — захиалга баталгаажаагүй</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-gray-400" />
-                <span>Цэвэрлэж буй</span>
+            <div className="space-y-2.5">
+              {STATUS_CONFIG.map(cfg => {
+                const count = stats?.rooms[cfg.key] ?? 0;
+                const Icon = cfg.icon;
+                return (
+                  <div key={cfg.key} className="flex items-center gap-2.5" data-testid={`legend-${cfg.key}`}>
+                    <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: cfg.color }} />
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium">{cfg.label}</span>
+                      <span className="text-xs text-muted-foreground ml-1">— {cfg.description}</span>
+                    </div>
+                    <span className="text-sm font-bold shrink-0" style={{ color: count > 0 ? cfg.color : undefined }}>
+                      {count}
+                    </span>
+                  </div>
+                );
+              })}
+              <div className="border-t pt-2 mt-2 flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Борлуулах боломжтой нийт:</span>
+                <span className="font-bold">
+                  {stats ? stats.rooms.total - (stats.rooms.outOfOrder ?? 0) : "—"}
+                  <span className="text-muted-foreground font-normal"> / {stats?.rooms.total ?? "—"}</span>
+                </span>
               </div>
             </div>
           </CardContent>
