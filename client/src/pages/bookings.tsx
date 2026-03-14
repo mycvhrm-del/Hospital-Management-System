@@ -107,7 +107,12 @@ export default function BookingsPage() {
 
   const { data: activeStays = [] } = useQuery<Booking[]>({
     queryKey: ["/api/bookings", "active-stays"],
-    queryFn: () => fetch("/api/bookings/active-stays").then(r => r.json()),
+    queryFn: async () => {
+      const res = await fetch("/api/bookings/active-stays");
+      if (!res.ok) throw new Error("Failed to fetch active stays");
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    },
   });
 
   type BookingsPage = { data: Booking[]; total: number; totalPages: number };

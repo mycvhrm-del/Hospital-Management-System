@@ -49,7 +49,12 @@ export default function SalesPage() {
 
   const { data: salesBookings = [], isLoading } = useQuery<Booking[]>({
     queryKey: ["/api/bookings", "active-stays-with-checkouts"],
-    queryFn: () => fetch("/api/bookings/active-stays?includeCheckouts=true").then(r => r.json()),
+    queryFn: async () => {
+      const res = await fetch("/api/bookings/active-stays?includeCheckouts=true");
+      if (!res.ok) throw new Error("Failed to fetch active stays");
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    },
   });
 
   const { data: allGuests = [] } = useQuery<Guest[]>({
