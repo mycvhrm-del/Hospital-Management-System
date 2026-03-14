@@ -485,26 +485,31 @@ function TimelineRow({
     return { guestCount, capacity };
   }, [room]);
 
-  const roomStatusConfig: Record<string, { dot: string; label: string }> = {
-    AVAILABLE: { dot: "bg-green-500", label: "Сул" },
-    OCCUPIED: { dot: "bg-red-500", label: "Дүүрсэн" },
-    PENDING: { dot: "bg-amber-400", label: "Хүлээгдэж буй" },
-    CLEANING: { dot: "bg-slate-400", label: "Цэвэрлэгээ" },
+  const roomStatusConfig: Record<string, { dot: string; label: string; rowBg: string; tdBg: string; badgeClass: string }> = {
+    AVAILABLE:            { dot: "bg-green-500",  label: "Сул",              rowBg: "",                                          tdBg: "bg-background",                                       badgeClass: "" },
+    OCCUPIED:             { dot: "bg-red-500",    label: "Дүүрсэн",          rowBg: "",                                          tdBg: "bg-background",                                       badgeClass: "" },
+    PENDING:              { dot: "bg-amber-400",  label: "Хүлээгдэж буй",    rowBg: "",                                          tdBg: "bg-background",                                       badgeClass: "" },
+    CLEANING:             { dot: "bg-slate-400",  label: "Цэвэрлэх хүлээлт", rowBg: "bg-slate-50 dark:bg-slate-900/30",          tdBg: "bg-slate-50 dark:bg-slate-900/30",                    badgeClass: "bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600" },
+    CLEANING_IN_PROGRESS: { dot: "bg-purple-500", label: "Цэвэрлэж буй",     rowBg: "bg-purple-50 dark:bg-purple-900/20",        tdBg: "bg-purple-50 dark:bg-purple-900/20",                  badgeClass: "bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900 dark:text-purple-300 dark:border-purple-700" },
+    INSPECTED:            { dot: "bg-teal-500",   label: "Шалгагдсан",       rowBg: "bg-teal-50 dark:bg-teal-900/20",            tdBg: "bg-teal-50 dark:bg-teal-900/20",                      badgeClass: "bg-teal-100 text-teal-700 border-teal-300 dark:bg-teal-900 dark:text-teal-300 dark:border-teal-700" },
+    OUT_OF_ORDER:         { dot: "bg-red-700",    label: "Засвартай (OOO)",   rowBg: "bg-red-50 dark:bg-red-900/20",              tdBg: "bg-red-50 dark:bg-red-900/20",                        badgeClass: "bg-red-100 text-red-700 border-red-300 dark:bg-red-900 dark:text-red-300 dark:border-red-700" },
+    OUT_OF_SERVICE:       { dot: "bg-zinc-400",   label: "Хаалттай (OOS)",   rowBg: "bg-zinc-50 dark:bg-zinc-900/30",            tdBg: "bg-zinc-50 dark:bg-zinc-900/30",                      badgeClass: "bg-zinc-100 text-zinc-600 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-600" },
   };
   const rs = roomStatusConfig[room.status] || roomStatusConfig.AVAILABLE;
+  const isNonSellable = ["CLEANING", "CLEANING_IN_PROGRESS", "INSPECTED", "OUT_OF_ORDER", "OUT_OF_SERVICE"].includes(room.status);
 
   return (
-    <tr data-testid={`timeline-row-${room.roomNumber}`} className={room.status === "CLEANING" ? "bg-slate-50 dark:bg-slate-900/30" : ""}>
-      <td className={`sticky left-0 z-10 border-b border-r px-3 py-2 ${room.status === "CLEANING" ? "bg-slate-50 dark:bg-slate-900/30" : "bg-background"}`}>
+    <tr data-testid={`timeline-row-${room.roomNumber}`} className={rs.rowBg}>
+      <td className={`sticky left-0 z-10 border-b border-r px-3 py-2 ${rs.tdBg}`}>
         <div className="flex items-center justify-between gap-1">
           <div className="flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${rs.dot}`} title={rs.label} data-testid={`dot-room-status-${room.roomNumber}`} />
             <span className="font-medium text-sm" data-testid={`text-room-number-${room.roomNumber}`}>{room.roomNumber}</span>
             <span className="text-xs text-muted-foreground">{room.category?.name || ""}</span>
           </div>
-          {room.status === "CLEANING" ? (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600" data-testid={`badge-cleaning-${room.roomNumber}`}>
-              Цэвэрлэгээ
+          {isNonSellable ? (
+            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-normal ${rs.badgeClass}`} data-testid={`badge-status-${room.roomNumber}`}>
+              {rs.label}
             </Badge>
           ) : (
             <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal" data-testid={`badge-occupancy-${room.roomNumber}`}>
@@ -529,6 +534,46 @@ function TimelineRow({
         const isTodayCell = dateStr === today;
 
         if (dayBookings.length === 0) {
+          if (room.status === "OUT_OF_ORDER") {
+            return (
+              <td
+                key={dateStr}
+                className={`border-b px-1 py-1 ${isTodayCell ? "bg-red-50/80 dark:bg-red-900/10" : "bg-red-50/40 dark:bg-red-900/10"}`}
+                data-testid={`cell-ooo-${room.roomNumber}-${dateStr}`}
+              >
+                <div className="h-8 rounded border border-red-200 dark:border-red-800 flex items-center justify-center bg-red-100/50 dark:bg-red-900/20">
+                  <span className="text-[9px] text-red-500 dark:text-red-400 font-medium">OOO</span>
+                </div>
+              </td>
+            );
+          }
+          if (room.status === "OUT_OF_SERVICE") {
+            return (
+              <td
+                key={dateStr}
+                className={`border-b px-1 py-1 ${isTodayCell ? "bg-zinc-100/80 dark:bg-zinc-800/20" : "bg-zinc-50/40 dark:bg-zinc-900/10"}`}
+                data-testid={`cell-oos-${room.roomNumber}-${dateStr}`}
+              >
+                <div className="h-8 rounded border border-zinc-200 dark:border-zinc-700 flex items-center justify-center bg-zinc-100/50 dark:bg-zinc-800/20">
+                  <span className="text-[9px] text-zinc-400 font-medium">OOS</span>
+                </div>
+              </td>
+            );
+          }
+          if (["CLEANING", "CLEANING_IN_PROGRESS", "INSPECTED"].includes(room.status)) {
+            return (
+              <td
+                key={dateStr}
+                className={`border-b px-1 py-1 cursor-pointer ${isTodayCell ? "bg-primary/5" : rs.rowBg}`}
+                onClick={() => onEmptyCellClick(day)}
+                data-testid={`cell-empty-${room.roomNumber}-${dateStr}`}
+              >
+                <div className="h-8 rounded border border-dashed border-muted-foreground/20 flex items-center justify-center">
+                  <span className="text-[10px] text-muted-foreground/40">+</span>
+                </div>
+              </td>
+            );
+          }
           return (
             <td
               key={dateStr}
