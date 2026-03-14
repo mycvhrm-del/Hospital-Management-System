@@ -248,6 +248,16 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
                   </Link>
                 </Button>
               </div>
+              <Separator />
+              <p className="text-xs font-medium text-muted-foreground">Яаралтай хаалт</p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" className="flex-1 text-red-600 border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950 text-xs" onClick={() => statusChangeMutation.mutate("OUT_OF_ORDER")} disabled={statusChangeMutation.isPending} data-testid={`button-ooo-${room.roomNumber}`}>
+                  <WrenchIcon className="h-3 w-3 mr-1" />OOO
+                </Button>
+                <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => statusChangeMutation.mutate("OUT_OF_SERVICE")} disabled={statusChangeMutation.isPending} data-testid={`button-oos-${room.roomNumber}`}>
+                  <MinusCircle className="h-3 w-3 mr-1" />OOS
+                </Button>
+              </div>
             </div>
           )}
 
@@ -307,6 +317,16 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
                   </Button>
                 )}
               </div>
+              <Separator />
+              <p className="text-xs font-medium text-muted-foreground">Яаралтай хаалт</p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" className="flex-1 text-red-600 border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950 text-xs" onClick={() => statusChangeMutation.mutate("OUT_OF_ORDER")} disabled={statusChangeMutation.isPending} data-testid={`button-ooo-${room.roomNumber}`}>
+                  <WrenchIcon className="h-3 w-3 mr-1" />OOO
+                </Button>
+                <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => statusChangeMutation.mutate("OUT_OF_SERVICE")} disabled={statusChangeMutation.isPending} data-testid={`button-oos-${room.roomNumber}`}>
+                  <MinusCircle className="h-3 w-3 mr-1" />OOS
+                </Button>
+              </div>
             </div>
           )}
 
@@ -362,6 +382,16 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
                 <PlayCircle className="h-3.5 w-3.5 mr-2" />
                 {statusChangeMutation.isPending ? "Шинэчилж байна..." : "Цэвэрлэж эхлэх"}
               </Button>
+              <Separator />
+              <p className="text-xs font-medium text-muted-foreground">Яаралтай хаалт</p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" className="flex-1 text-red-600 border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950 text-xs" onClick={() => statusChangeMutation.mutate("OUT_OF_ORDER")} disabled={statusChangeMutation.isPending} data-testid={`button-ooo-${room.roomNumber}`}>
+                  <WrenchIcon className="h-3 w-3 mr-1" />OOO
+                </Button>
+                <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => statusChangeMutation.mutate("OUT_OF_SERVICE")} disabled={statusChangeMutation.isPending} data-testid={`button-oos-${room.roomNumber}`}>
+                  <MinusCircle className="h-3 w-3 mr-1" />OOS
+                </Button>
+              </div>
             </div>
           )}
 
@@ -378,6 +408,16 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
                 <ShieldCheck className="h-3.5 w-3.5 mr-2" />
                 {statusChangeMutation.isPending ? "Шинэчилж байна..." : "Цэвэрлэгээ дуусгах"}
               </Button>
+              <Separator />
+              <p className="text-xs font-medium text-muted-foreground">Яаралтай хаалт</p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" className="flex-1 text-red-600 border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950 text-xs" onClick={() => statusChangeMutation.mutate("OUT_OF_ORDER")} disabled={statusChangeMutation.isPending} data-testid={`button-ooo-${room.roomNumber}`}>
+                  <WrenchIcon className="h-3 w-3 mr-1" />OOO
+                </Button>
+                <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => statusChangeMutation.mutate("OUT_OF_SERVICE")} disabled={statusChangeMutation.isPending} data-testid={`button-oos-${room.roomNumber}`}>
+                  <MinusCircle className="h-3 w-3 mr-1" />OOS
+                </Button>
+              </div>
             </div>
           )}
 
@@ -394,6 +434,16 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
                 <CheckCheck className="h-3.5 w-3.5 mr-2" />
                 {statusChangeMutation.isPending ? "Шинэчилж байна..." : "Баталгаажуулах — Сул болгох"}
               </Button>
+              <Separator />
+              <p className="text-xs font-medium text-muted-foreground">Яаралтай хаалт</p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" className="flex-1 text-red-600 border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950 text-xs" onClick={() => statusChangeMutation.mutate("OUT_OF_ORDER")} disabled={statusChangeMutation.isPending} data-testid={`button-ooo-${room.roomNumber}`}>
+                  <WrenchIcon className="h-3 w-3 mr-1" />OOO
+                </Button>
+                <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => statusChangeMutation.mutate("OUT_OF_SERVICE")} disabled={statusChangeMutation.isPending} data-testid={`button-oos-${room.roomNumber}`}>
+                  <MinusCircle className="h-3 w-3 mr-1" />OOS
+                </Button>
+              </div>
             </div>
           )}
 
@@ -411,6 +461,17 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
               >
                 <CheckCircle className="h-3.5 w-3.5 mr-2" />
                 {statusChangeMutation.isPending ? "Шинэчилж байна..." : "Засвар дуусгах — Нээх"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full"
+                onClick={() => statusChangeMutation.mutate("OUT_OF_SERVICE")}
+                disabled={statusChangeMutation.isPending}
+                data-testid={`button-ooo-to-oos-${room.roomNumber}`}
+              >
+                <MinusCircle className="h-3.5 w-3.5 mr-2" />
+                {statusChangeMutation.isPending ? "Шинэчилж байна..." : "Хаалттай болгох (OOS)"}
               </Button>
             </div>
           )}
