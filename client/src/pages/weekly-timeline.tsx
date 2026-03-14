@@ -70,6 +70,7 @@ const STATUS_COLORS: Record<string, string> = {
   PENDING: "bg-amber-400/80",
   CONFIRMED: "bg-blue-400/80",
   CHECKED_IN: "bg-emerald-500/80",
+  EXTENDED: "bg-purple-500/80",
   NO_SHOW: "bg-orange-500/80",
 };
 
@@ -77,6 +78,7 @@ const STATUS_LABELS: Record<string, string> = {
   PENDING: "Хүлээгдэж буй",
   CONFIRMED: "Баталгаажсан",
   CHECKED_IN: "Дүүрсэн",
+  EXTENDED: "Сунгасан",
   NO_SHOW: "Ирээгүй",
 };
 
@@ -496,7 +498,7 @@ function TimelineRow({
   onEmptyCellClick: (date: Date) => void;
 }) {
   const occupancy = useMemo(() => {
-    const checkedIn = room.bookings.filter(b => b.status === "CHECKED_IN");
+    const checkedIn = room.bookings.filter(b => b.status === "CHECKED_IN" || b.status === "EXTENDED");
     const guestCount = checkedIn.length;
     const capacity = room.category?.capacity || 1;
     return { guestCount, capacity };
@@ -577,6 +579,19 @@ function TimelineRow({
               >
                 <div className="h-8 rounded border border-dashed border-muted-foreground/20 flex items-center justify-center">
                   <span className="text-[10px] text-muted-foreground/40">+</span>
+                </div>
+              </td>
+            );
+          }
+          if (room.status === "DUE_OUT" && isTodayCell) {
+            return (
+              <td
+                key={dateStr}
+                className="border-b px-1 py-1 bg-orange-50/60 dark:bg-orange-900/10"
+                data-testid={`cell-dueout-${room.roomNumber}-${dateStr}`}
+              >
+                <div className="h-8 rounded border border-orange-200 dark:border-orange-800 flex items-center justify-center bg-orange-100/40 dark:bg-orange-900/20">
+                  <span className="text-[9px] text-orange-500 dark:text-orange-400 font-medium">OUT</span>
                 </div>
               </td>
             );

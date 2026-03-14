@@ -38,7 +38,7 @@ interface RoomGridItem {
   roomNumber: string;
   floor: string;
   categoryId: string;
-  status: "AVAILABLE" | "OCCUPIED" | "PENDING" | "CLEANING" | "CLEANING_IN_PROGRESS" | "INSPECTED" | "OUT_OF_ORDER" | "OUT_OF_SERVICE";
+  status: "AVAILABLE" | "OCCUPIED" | "DUE_OUT" | "PENDING" | "CLEANING" | "CLEANING_IN_PROGRESS" | "INSPECTED" | "OUT_OF_ORDER" | "OUT_OF_SERVICE";
   category: RoomCategory | null;
   activeBooking: Booking | null;
   guest: {
@@ -87,8 +87,9 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
 
   const todayMidnight = new Date();
   todayMidnight.setHours(0, 0, 0, 0);
-  const isDueOut = room.status === "OCCUPIED" && room.activeBooking &&
-    new Date(new Date(room.activeBooking.checkOut).setHours(0, 0, 0, 0)).getTime() === todayMidnight.getTime();
+  const isDueOut = room.status === "DUE_OUT" ||
+    (room.status === "OCCUPIED" && room.activeBooking &&
+    new Date(new Date(room.activeBooking.checkOut).setHours(0, 0, 0, 0)).getTime() === todayMidnight.getTime());
   const StatusIcon = config.icon;
 
   const checkinMutation = useMutation({
@@ -177,7 +178,7 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
 
           <Separator />
 
-          {room.status === "OCCUPIED" && room.guest && room.activeBooking && (
+          {(room.status === "OCCUPIED" || room.status === "DUE_OUT") && room.guest && room.activeBooking && (
             <div className="space-y-3">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
@@ -495,11 +496,8 @@ export default function RoomGridPage() {
     total: roomGrid.length,
     sellable: roomGrid.filter(r => r.status !== "OUT_OF_ORDER").length,
     available: roomGrid.filter((r) => r.status === "AVAILABLE").length,
-    occupied: roomGrid.filter((r) => r.status === "OCCUPIED").length,
-    dueOut: roomGrid.filter((r) =>
-      r.status === "OCCUPIED" && r.activeBooking &&
-      new Date(new Date(r.activeBooking.checkOut).setHours(0, 0, 0, 0)).getTime() === todayMidnightForStats.getTime()
-    ).length,
+    occupied: roomGrid.filter((r) => r.status === "OCCUPIED" || r.status === "DUE_OUT").length,
+    dueOut: roomGrid.filter((r) => r.status === "DUE_OUT").length,
     pending: roomGrid.filter((r) => r.status === "PENDING" && r.activeBooking?.status !== "CONFIRMED" && r.activeBooking?.status !== "NO_SHOW").length,
     confirmed: roomGrid.filter((r) => r.status === "PENDING" && r.activeBooking?.status === "CONFIRMED").length,
     noShow: roomGrid.filter((r) => r.activeBooking?.status === "NO_SHOW").length,
