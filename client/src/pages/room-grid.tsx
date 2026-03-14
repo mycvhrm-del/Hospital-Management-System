@@ -6,12 +6,13 @@ import { z } from "zod";
 import { Link } from "wouter";
 import {
   BedDouble, User, Phone, Calendar, CreditCard, Crown,
-  CheckCircle, Clock, Sparkles, LogOut, ArrowRight, FileText,
-  Banknote, CheckCheck, AlertTriangle, WrenchIcon, MinusCircle,
+  CheckCircle, Clock, LogOut, ArrowRight, FileText,
+  Banknote, CheckCheck, WrenchIcon, MinusCircle,
   ShieldCheck, PlayCircle, CalendarCheck,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { ROOM_STATUS_CONFIG, getRoomStatusConfig } from "@/lib/room-status";
 import type { RoomCategory, Booking, Guest, Floor } from "@shared/schema";
 
 import { Button } from "@/components/ui/button";
@@ -50,70 +51,7 @@ interface RoomGridItem {
   } | null;
 }
 
-const statusConfig: Record<string, {
-  label: string;
-  bgClass: string;
-  dotClass: string;
-  textClass: string;
-  icon: React.ElementType;
-}> = {
-  AVAILABLE: {
-    label: "Сул",
-    bgClass: "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800",
-    dotClass: "bg-emerald-500",
-    textClass: "text-emerald-700 dark:text-emerald-400",
-    icon: CheckCircle,
-  },
-  OCCUPIED: {
-    label: "Дүүрсэн",
-    bgClass: "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800",
-    dotClass: "bg-rose-500",
-    textClass: "text-rose-700 dark:text-rose-400",
-    icon: User,
-  },
-  PENDING: {
-    label: "Хүлээгдэж буй",
-    bgClass: "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800",
-    dotClass: "bg-amber-500",
-    textClass: "text-amber-700 dark:text-amber-400",
-    icon: Clock,
-  },
-  CLEANING: {
-    label: "Цэвэрлэгээ хүлээгдэж буй",
-    bgClass: "bg-slate-100 dark:bg-slate-800/40 border-slate-300 dark:border-slate-700",
-    dotClass: "bg-slate-400",
-    textClass: "text-slate-600 dark:text-slate-400",
-    icon: Sparkles,
-  },
-  CLEANING_IN_PROGRESS: {
-    label: "Цэвэрлэж буй",
-    bgClass: "bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800",
-    dotClass: "bg-purple-500",
-    textClass: "text-purple-700 dark:text-purple-400",
-    icon: PlayCircle,
-  },
-  INSPECTED: {
-    label: "Шалгагдсан",
-    bgClass: "bg-teal-50 dark:bg-teal-950/40 border-teal-200 dark:border-teal-800",
-    dotClass: "bg-teal-500",
-    textClass: "text-teal-700 dark:text-teal-400",
-    icon: ShieldCheck,
-  },
-  OUT_OF_ORDER: {
-    label: "Засвартай (OOO)",
-    bgClass: "bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-700",
-    dotClass: "bg-red-600",
-    textClass: "text-red-700 dark:text-red-400",
-    icon: WrenchIcon,
-  },
-  OUT_OF_SERVICE: {
-    label: "Хаалттай (OOS)",
-    bgClass: "bg-zinc-100 dark:bg-zinc-800/40 border-zinc-300 dark:border-zinc-700",
-    dotClass: "bg-zinc-500",
-    textClass: "text-zinc-600 dark:text-zinc-400",
-    icon: MinusCircle,
-  },
-};
+const statusConfig = ROOM_STATUS_CONFIG;
 
 const quickBookingSchema = z.object({
   guestId: z.string().min(1, "Зочин сонгоно уу"),

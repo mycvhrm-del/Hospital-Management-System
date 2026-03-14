@@ -70,6 +70,7 @@ export interface IStorage {
   deleteService(id: string): Promise<boolean>;
 
   getBookingServices(bookingId: string): Promise<BookingService[]>;
+  getBookingServiceById(id: string): Promise<BookingService | undefined>;
   addBookingService(data: InsertBookingService): Promise<BookingService>;
   deleteBookingService(id: string): Promise<boolean>;
 
@@ -325,6 +326,11 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(bookingServices).where(eq(bookingServices.bookingId, bookingId));
   }
 
+  async getBookingServiceById(id: string): Promise<BookingService | undefined> {
+    const [bs] = await db.select().from(bookingServices).where(eq(bookingServices.id, id));
+    return bs;
+  }
+
   async addBookingService(data: InsertBookingService): Promise<BookingService> {
     const [bs] = await db.insert(bookingServices).values(data).returning();
     return bs;
@@ -405,35 +411,31 @@ export class DatabaseStorage implements IStorage {
   }
 
   async completeTreatmentPlan(id: string, completedAt: Date): Promise<TreatmentPlan | undefined> {
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL! });
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      const txDb = drizzle(client);
-
-      const [plan] = await txDb.update(treatmentPlans)
+    return await db.transaction(async (tx) => {
+      const [plan] = await tx.update(treatmentPlans)
         .set({ status: "COMPLETED", completedAt })
         .where(and(eq(treatmentPlans.id, id), ne(treatmentPlans.status, "COMPLETED")))
         .returning();
 
       if (!plan) {
-        await client.query("ROLLBACK");
-        const [existing] = await db.select().from(treatmentPlans).where(eq(treatmentPlans.id, id));
+        const [existing] = await tx.select().from(treatmentPlans).where(eq(treatmentPlans.id, id));
         return existing;
       }
 
       if (plan.serviceId) {
-        const bom = await txDb.select().from(serviceMaterials)
+        const bom = await tx.select().from(serviceMaterials)
           .where(eq(serviceMaterials.serviceId, plan.serviceId));
 
         for (const mat of bom) {
-          await txDb.update(inventory)
-            .set({
-              stockQuantity: sql`GREATEST(0, ${inventory.stockQuantity} - ${Number(mat.quantityNeeded)})`,
-            })
+          const [invItem] = await tx.select().from(inventory).where(eq(inventory.id, mat.inventoryId));
+          if (invItem && Number(invItem.stockQuantity) < Number(mat.quantityNeeded)) {
+            throw new Error(`Нөөц хүрэлцэхгүй байна: ${invItem.name} (байгаа: ${invItem.stockQuantity}, шаардлагатай: ${mat.quantityNeeded})`);
+          }
+          await tx.update(inventory)
+            .set({ stockQuantity: sql`${inventory.stockQuantity} - ${Number(mat.quantityNeeded)}` })
             .where(eq(inventory.id, mat.inventoryId));
 
-          await txDb.insert(materialUsages).values({
+          await tx.insert(materialUsages).values({
             treatmentId: id,
             inventoryId: mat.inventoryId,
             quantityUsed: mat.quantityNeeded,
@@ -442,15 +444,8 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
-      await client.query("COMMIT");
       return plan;
-    } catch (err) {
-      await client.query("ROLLBACK");
-      throw err;
-    } finally {
-      client.release();
-      await pool.end();
-    }
+    });
   }
 
   async getAllTreatmentPlans(): Promise<TreatmentPlan[]> {

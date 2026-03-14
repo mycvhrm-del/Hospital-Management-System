@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -261,8 +261,8 @@ export default function InventoryPage() {
                 const lowStock = isLowStock(item);
                 const isExpanded = expandedId === item.id;
                 return (
-                  <>
-                    <TableRow key={item.id} data-testid={`row-inventory-${item.id}`}>
+                  <Fragment key={item.id}>
+                    <TableRow data-testid={`row-inventory-${item.id}`}>
                       <TableCell>
                         <Button
                           size="icon"
@@ -320,7 +320,7 @@ export default function InventoryPage() {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </TableBody>

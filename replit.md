@@ -1,7 +1,7 @@
 # Сувилал ERP (Nursing Home ERP)
 
 ## Overview
-A nursing home ERP system built with Express + React (Vite) fullstack template. Manages rooms, bookings, guests, treatments, inventory, and billing.
+A nursing home ERP system built with Express + React (Vite) fullstack template. Manages rooms, bookings, guests, treatments, inventory, and billing. UI is in Mongolian.
 
 ## Tech Stack
 - **Frontend**: React + Vite, Tailwind CSS, Shadcn UI, Wouter router, TanStack Query, Recharts
@@ -12,7 +12,8 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - `shared/schema.ts` - Drizzle ORM schema definitions and Zod validation schemas
 - `server/` - Express API routes, storage layer (DatabaseStorage), seed data
 - `client/src/` - React frontend with pages and components
-- Sidebar-based layout using Shadcn Sidebar component
+- `client/src/lib/room-status.ts` - **Single source of truth** for all 8 room status configs (label, icon, dotClass, bgClass, textClass, badgeClass, rowBg, tdBg, chartColor, nonSellable). ALL pages must import from here.
+- Sidebar-based layout using Shadcn Sidebar component (collapsible icon mode)
 
 ## Database Models
 - RoomCategory - Room types (Standard, Deluxe, VIP, Family)
@@ -32,17 +33,25 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - Floor - Managed floor options (name, number) used in room assignment
 - AuditLog - System activity log (userId, action, description, targetTable)
 
+## Room Status System (8 statuses)
+All statuses defined in `client/src/lib/room-status.ts` as `ROOM_STATUS_CONFIG`.  
+Status flow:
+- AVAILABLE → PENDING (booking created) → OCCUPIED (check-in) → CLEANING (check-out) → CLEANING_IN_PROGRESS → INSPECTED → AVAILABLE
+- AVAILABLE ↔ OUT_OF_ORDER (OOO) — needs maintenance
+- AVAILABLE ↔ OUT_OF_SERVICE (OOS) — temporarily closed
+- nonSellable: CLEANING, CLEANING_IN_PROGRESS, INSPECTED, OUT_OF_ORDER, OUT_OF_SERVICE
+
 ## Pages & Routes
-- `/` - Dashboard with stat cards (today's revenue, room counts, active bookings) and room status pie chart
-- `/room-grid` - Interactive Room Grid Dashboard (color-coded cards, floor tabs, quick booking, check-out)
-- `/timeline` - Weekly Occupancy Timeline (7-day calendar with booking bars, room-by-day grid, quick booking from empty cells, booking popovers with guest/family info, category filter)
+- `/` - Dashboard with stat cards (today's revenue, room counts, active bookings) and room status pie chart (all 8 statuses)
+- `/room-grid` - Interactive Room Grid Dashboard (color-coded cards, floor tabs, quick booking, check-out, DUE_OUT badge, 8-status actions)
+- `/timeline` - Weekly Occupancy Timeline (7-day calendar with booking bars, room-by-day grid, quick booking from empty cells, OOO/OOS overlays)
 - `/guests` - Guest list with CRUD, search, family member linking
 - `/guests/:id` - Guest detail with medical history viewer, family members, bookings, treatment creation (Doctor's Panel), My Schedule section
 - `/daily-schedule` - Daily treatment schedule showing all treatments for a selected date with complete/mark done actions and low stock alerts
 - `/bookings` - Bookings list with search, status filter, create booking dialog with service selection, treatment plan management per booking
 - `/sales` - Sales page showing CHECKED_IN and CHECKED_OUT bookings with revenue summary cards, payment and checkout actions
-- `/housekeeping` - Full housekeeping workflow: CLEANING → CLEANING_IN_PROGRESS → INSPECTED → AVAILABLE; separate sections per stage + OOO + OOS; 6-stat header cards; Section components per stage
-- `/services` - Services/Packages CRUD (tabs: All/Service/Package). Service creation is separate from Package creation: services have name/price/materials (BOM), packages have name/price and a searchable list of included services from existing SERVICE records. Edit routes to correct dialog by type.
+- `/housekeeping` - Full housekeeping workflow: CLEANING → CLEANING_IN_PROGRESS → INSPECTED → AVAILABLE; separate sections per stage + OOO + OOS; 6-stat header cards
+- `/services` - Services/Packages CRUD (tabs: All/Service/Package). Service creation is separate from Package creation.
 - `/billing` - Family billing overview (aggregated by family groups)
 - `/inventory` - Inventory management with CRUD, purchase history, low stock warnings
 - `/settings` - Room Categories, Floors, and Rooms CRUD (Tabs layout with DB-managed floors)
@@ -50,21 +59,23 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 ## API Endpoints
 - `GET/POST/PATCH/DELETE /api/room-categories` - Room category CRUD (audit log on price change)
 - `GET/POST/PATCH/DELETE /api/floors` - Floor CRUD (conflict check on duplicate number, dependency check on delete)
-- `GET/POST/PATCH/DELETE /api/rooms` - Room CRUD
-- `GET/POST/PATCH/DELETE /api/guests` - Guest CRUD (supports ?search= query param for phone/ID/name filtering)
+- `GET/POST/PATCH/DELETE /api/rooms` - Room CRUD (DELETE: guards against active bookings)
+- `GET/POST/PATCH/DELETE /api/guests` - Guest CRUD (DELETE: guards against active bookings; supports ?search= query param)
 - `GET /api/weekly-timeline?start=YYYY-MM-DD` - Weekly timeline data with rooms, bookings, guests, family members
 - `GET /api/guests/:id/family` - Family members
 - `GET /api/guests/:id/bookings` - Guest bookings
 - `GET /api/guests/:id/family-bookings` - All family bookings
 - `GET /api/bookings` - All bookings
-- `POST /api/bookings` - Create booking (with overlap check, sets room to PENDING)
+- `POST /api/bookings` - Create booking (overlap check, date validation, guest count validation, server-side total calc, sets room to PENDING)
+- `PATCH /api/bookings/:id` - Update booking (auto-recalculates totalAmount when dates change)
 - `PATCH /api/bookings/:id/status` - Update booking status (manages room status transitions)
 - `GET /api/bookings/:id/transactions` - Booking transactions
 - `POST /api/transactions` - Create payment (DEPOSIT auto-confirms booking)
 - `DELETE /api/transactions/:id` - Delete payment (with audit log, updates booking depositPaid)
 - `GET/POST/PATCH/DELETE /api/services` - Service/Package CRUD (audit log on price change)
 - `GET /api/bookings/:id/services` - Services for a booking
-- `POST /api/booking-services` - Add service to a booking
+- `POST /api/booking-services` - Add service to booking (auto-recalculates booking totalAmount)
+- `DELETE /api/booking-services/:id` - Remove service from booking (auto-recalculates booking totalAmount)
 - `GET /api/room-grid` - Enriched room data with active bookings and guest info
 - `GET /api/family-bill/:parentId` - Family bill with all bookings, transactions, totals
 - `GET/POST/PATCH/DELETE /api/inventory` - Inventory CRUD
@@ -72,22 +83,23 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - `GET/POST /api/services/:id/materials` - BOM management (bulk replace)
 - `GET /api/bookings/:id/treatment-plans` - Treatment plans for a booking
 - `POST /api/treatment-plans` - Create treatment plan
-- `PATCH /api/treatment-plans/:id/complete` - Complete treatment (auto-deducts inventory via DB transaction, returns low stock warnings)
+- `PATCH /api/treatment-plans/:id/complete` - Complete treatment (auto-deducts inventory via DB transaction with stock validation, returns low stock warnings)
 - `GET/POST/PATCH/DELETE /api/staff` - Staff (doctors/nurses) CRUD
-- `POST /api/treatment-plans/bulk` - Create recurring treatment plans (daily at specified time over date range)
+- `POST /api/treatment-plans/bulk` - Create recurring treatment plans
 - `GET /api/daily-schedule?date=YYYY-MM-DD` - Daily schedule with enriched guest/room/staff data
 - `GET /api/guests/:id/treatment-plans` - All treatment plans for a guest across bookings
 - `GET /api/audit-logs` - Audit log entries
-- `GET /api/dashboard/stats` - Dashboard statistics (room counts, today's revenue, booking counts)
+- `GET /api/dashboard/stats` - Dashboard statistics (all 8 room status counts, revenue, booking counts)
 
 ## Treatment BOM & Auto-Deduction
 - Each service can have a Bill of Materials (BOM) linking to inventory items with quantities needed
 - When a treatment plan is marked complete, inventory is automatically deducted based on BOM
-- Uses a DB transaction with atomic status transition (only completes if currently SCHEDULED)
+- Uses `db.transaction()` (drizzle-orm built-in) for atomicity — no manual pg.Pool creation
+- **Stock validation**: if stock < required quantity, throws an error instead of silently truncating to 0
 - Material usage records created with completion timestamp
 
 ## Booking Flow
-- Create booking → PENDING (room=PENDING)
+- Create booking → PENDING (room=PENDING); date validation: checkIn must be < checkOut
 - Pay DEPOSIT → CONFIRMED (room stays PENDING)
 - CHECK_IN → room=OCCUPIED
 - CHECK_OUT → room=CLEANING (visible on Housekeeping page)
@@ -95,31 +107,25 @@ A nursing home ERP system built with Express + React (Vite) fullstack template. 
 - CANCEL (was checked in) → room=CLEANING
 - Cleaning done (Housekeeping or Room Grid) → room=AVAILABLE
 
-## Room Status Colors (Room Grid)
-- Green: AVAILABLE
-- Red: OCCUPIED (Дүүрсэн)
-- Yellow: PENDING
-- Gray: CLEANING
+## Booking totalAmount Recalculation
+- On POST /api/bookings: server computes nights × basePrice + services total (client value ignored)
+- On PATCH /api/bookings/:id with date changes: auto-recalculates (nights × basePrice + existing services)
+- On POST /api/booking-services or DELETE /api/booking-services/:id: auto-recalculates booking total
+
+## Data Guards
+- DELETE /api/rooms/:id: checks for active bookings (non-CHECKED_OUT/CANCELLED) before allowing deletion
+- DELETE /api/guests/:id: checks for active bookings (non-CHECKED_OUT/CANCELLED) before allowing deletion
 
 ## Audit Logging
 - Price changes on room categories and services
 - Payment deletions
 - Logged with action type, description, and target table
 
-## Seed Data
-- 4 room categories, 9 rooms
-- 5 guests (1 family group with parent + 2 children, 2 solo guests)
-- 3 bookings (2 CHECKED_IN on rooms 102/302, 1 PENDING on room 402)
-- 8 services (5 SERVICE type, 3 PACKAGE type) in Mongolian
-- 7 inventory items (massage oil, towels, mud packs, needles, bath salts, disinfectant, disposable blankets)
-- BOM links between services and inventory items
-- Guests include medical history JSON data
-
 ## Key Design Decisions
-- Server-authoritative pricing: POST /api/bookings calculates totalAmount server-side from room basePrice × nights + selected service prices (ignores client totalAmount)
-- Service type enum: SERVICE | PACKAGE
-- Treatment completion uses DB transaction for atomicity (prevents race conditions and partial deductions)
-- staleTime: Infinity in queryClient defaults
+- Server-authoritative pricing: POST /api/bookings calculates totalAmount server-side from room basePrice × nights + selected service prices
+- drizzle-zod limitation: createInsertSchema does NOT pick up updated pgEnum values dynamically; always override status field explicitly with `.extend({ status: z.enum([...]) })`
+- `staleTime: Infinity` in queryClient defaults
+- Do NOT import `@radix-ui/react-collapsible` directly — causes duplicate React instance error; use plain `useState` toggle
 - All UI labels in Mongolian
 
 ## Running

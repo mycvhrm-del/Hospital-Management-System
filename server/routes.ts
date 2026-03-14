@@ -156,6 +156,10 @@ export async function registerRoutes(
   });
 
   app.delete("/api/rooms/:id", async (req, res) => {
+    const activeBooking = await storage.getActiveBookingForRoom(req.params.id);
+    if (activeBooking) {
+      return res.status(409).json({ message: "Энэ өрөөнд идэвхтэй захиалга байна. Устгахын өмнө захиалгыг дуусгана уу." });
+    }
     const success = await storage.deleteRoom(req.params.id);
     if (!success) return res.status(404).json({ message: "Room not found" });
     res.json({ message: "Deleted" });
@@ -212,6 +216,11 @@ export async function registerRoutes(
   });
 
   app.delete("/api/guests/:id", async (req, res) => {
+    const guestBookings = await storage.getGuestBookings(req.params.id);
+    const active = guestBookings.find(b => !["CHECKED_OUT", "CANCELLED"].includes(b.status));
+    if (active) {
+      return res.status(409).json({ message: "Энэ зочинд идэвхтэй захиалга байна. Устгахын өмнө захиалгыг дуусгана уу." });
+    }
     const success = await storage.deleteGuest(req.params.id);
     if (!success) return res.status(404).json({ message: "Guest not found" });
     res.json({ message: "Deleted" });
@@ -290,6 +299,10 @@ export async function registerRoutes(
 
     const checkIn = new Date(parsed.data.checkIn);
     const checkOut = new Date(parsed.data.checkOut);
+
+    if (checkIn >= checkOut) {
+      return res.status(400).json({ message: "Гарах огноо орох огнооноос хойш байх ёстой" });
+    }
 
     const overlap = await storage.checkBookingOverlap(parsed.data.roomId, checkIn, checkOut);
     if (overlap) {
@@ -445,6 +458,24 @@ export async function registerRoutes(
     if (req.body.checkIn) updates.checkIn = new Date(req.body.checkIn);
     if (req.body.checkOut) updates.checkOut = new Date(req.body.checkOut);
     if (req.body.totalAmount !== undefined) updates.totalAmount = String(req.body.totalAmount);
+
+    const datesChanged = (updates.checkIn || updates.checkOut) && req.body.totalAmount === undefined;
+    if (datesChanged) {
+      const newCheckIn = updates.checkIn ?? new Date(booking.checkIn);
+      const newCheckOut = updates.checkOut ?? new Date(booking.checkOut);
+      if (newCheckIn >= newCheckOut) {
+        return res.status(400).json({ message: "Гарах огноо орох огнооноос хойш байх ёстой" });
+      }
+      const room = await storage.getRoom(booking.roomId);
+      const categories = await storage.getRoomCategories();
+      const category = room ? categories.find(c => c.id === room.categoryId) : null;
+      const nights = Math.max(1, Math.ceil((newCheckOut.getTime() - newCheckIn.getTime()) / (1000 * 60 * 60 * 24)));
+      const roomTotal = category ? Number(category.basePrice) * nights : 0;
+      const existingServices = await storage.getBookingServices(booking.id);
+      const servicesTotal = existingServices.reduce((s, bs) => s + Number(bs.totalPrice), 0);
+      updates.totalAmount = String(roomTotal + servicesTotal);
+    }
+
     const updated = await storage.updateBooking(req.params.id, updates);
     res.json(updated);
   });
@@ -452,7 +483,7 @@ export async function registerRoutes(
   app.delete("/api/bookings/:id", async (req, res) => {
     const booking = await storage.getBooking(req.params.id);
     if (!booking) return res.status(404).json({ message: "Booking not found" });
-    if (booking.status === "CHECKED_IN" || booking.status === "OCCUPIED") {
+    if (booking.status === "CHECKED_IN") {
       return res.status(400).json({ message: "Бүртгэлтэй захиалга устгах боломжгүй" });
     }
     if (booking.status !== "CHECKED_OUT" && booking.status !== "CANCELLED") {
@@ -581,6 +612,21 @@ export async function registerRoutes(
     res.json(bs);
   });
 
+  async function recalcBookingTotal(bookingId: string) {
+    const booking = await storage.getBooking(bookingId);
+    if (!booking) return;
+    const room = await storage.getRoom(booking.roomId);
+    const categories = await storage.getRoomCategories();
+    const category = room ? categories.find(c => c.id === room.categoryId) : null;
+    const ci = new Date(booking.checkIn);
+    const co = new Date(booking.checkOut);
+    const nights = Math.max(1, Math.ceil((co.getTime() - ci.getTime()) / (1000 * 60 * 60 * 24)));
+    const roomTotal = category ? Number(category.basePrice) * nights : 0;
+    const allServices = await storage.getBookingServices(bookingId);
+    const servicesTotal = allServices.reduce((s, bs) => s + Number(bs.totalPrice), 0);
+    await storage.updateBooking(bookingId, { totalAmount: String(roomTotal + servicesTotal) });
+  }
+
   app.post("/api/booking-services", async (req, res) => {
     const { bookingId, serviceId, quantity } = req.body;
     if (!bookingId || !serviceId) return res.status(400).json({ message: "bookingId and serviceId required" });
@@ -599,7 +645,17 @@ export async function registerRoutes(
       totalPrice,
     });
 
+    await recalcBookingTotal(bookingId);
     res.status(201).json(bs);
+  });
+
+  app.delete("/api/booking-services/:id", async (req, res) => {
+    const bs = await storage.getBookingServiceById(req.params.id);
+    const bookingId = bs?.bookingId ?? null;
+    const success = await storage.deleteBookingService(req.params.id);
+    if (!success) return res.status(404).json({ message: "Not found" });
+    if (bookingId) await recalcBookingTotal(bookingId);
+    res.json({ success: true });
   });
 
   app.get("/api/inventory", async (_req, res) => {
