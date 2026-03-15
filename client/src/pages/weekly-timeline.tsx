@@ -629,7 +629,8 @@ function BookingCell({
   const isStart = ci >= dayStart && ci < new Date(dayStart.getTime() + 86400000);
   const isEnd = co > dayStart && co <= new Date(dayStart.getTime() + 86400000);
 
-  const colorClass = STATUS_COLORS[booking.status] || "bg-gray-400/80";
+  const isDueOut = room.status === "DUE_OUT" && (booking.status === "CHECKED_IN" || booking.status === "EXTENDED");
+  const colorClass = isDueOut ? "bg-orange-500/80" : (STATUS_COLORS[booking.status] || "bg-gray-400/80");
   const roundLeft = isStart ? "rounded-l-md" : "";
   const roundRight = isEnd ? "rounded-r-md" : "";
 
@@ -663,8 +664,8 @@ function BookingCell({
             <h4 className="text-sm font-semibold" data-testid={`text-popup-guest-${booking.id}`}>
               {booking.guest ? `${booking.guest.lastName} ${booking.guest.firstName}` : "—"}
             </h4>
-            <Badge variant="outline" className="text-[10px]">
-              {STATUS_LABELS[booking.status] || booking.status}
+            <Badge variant="outline" className={`text-[10px] ${isDueOut ? "border-orange-400 text-orange-600 dark:text-orange-400" : ""}`}>
+              {isDueOut ? "Гарах дөхсөн" : (STATUS_LABELS[booking.status] || booking.status)}
             </Badge>
           </div>
 
