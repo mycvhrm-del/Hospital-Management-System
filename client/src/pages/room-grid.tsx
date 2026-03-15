@@ -8,7 +8,7 @@ import {
   BedDouble, User, Phone, Calendar, CreditCard, Crown,
   CheckCircle, Clock, LogOut, ArrowRight, FileText,
   Banknote, CheckCheck, WrenchIcon, MinusCircle,
-  ShieldCheck, PlayCircle, CalendarCheck, X,
+  ShieldCheck, PlayCircle, CalendarCheck, X, UserX,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -121,6 +121,19 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
       queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
       queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
       toast({ title: "Цуцлагдлаа", description: `${room.roomNumber} өрөөний захиалга цуцлагдлаа` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const noShowMutation = useMutation({
+    mutationFn: () => apiRequest("PATCH", `/api/bookings/${room.activeBooking!.id}/status`, { status: "NO_SHOW" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      toast({ title: "Ирээгүй", description: `${room.roomNumber} өрөөний захиалга 'Ирээгүй' болгогдлоо` });
     },
     onError: (err: Error) => {
       toast({ title: "Алдаа", description: err.message, variant: "destructive" });
@@ -357,6 +370,19 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
                   >
                     <CheckCheck className="h-3.5 w-3.5 mr-2" />
                     {checkinMutation.isPending ? "Check-in хийж байна..." : "Check-in хийх"}
+                  </Button>
+                )}
+                {(room.activeBooking.status === "PENDING" || room.activeBooking.status === "CONFIRMED") && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-amber-600 border-amber-200 hover:bg-amber-50 dark:border-amber-800 dark:hover:bg-amber-950"
+                    onClick={() => noShowMutation.mutate()}
+                    disabled={noShowMutation.isPending}
+                    data-testid={`button-noshow-${room.roomNumber}`}
+                  >
+                    <UserX className="h-3.5 w-3.5 mr-2" />
+                    {noShowMutation.isPending ? "Тэмдэглэж байна..." : "Ирээгүй болгох"}
                   </Button>
                 )}
                 {room.activeBooking.status === "NO_SHOW" && (

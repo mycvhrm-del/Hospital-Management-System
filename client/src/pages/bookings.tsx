@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CalendarDays, Search, UserPlus, X, Check, ClipboardList, Clock, CheckCircle2, Pencil, Trash2, Banknote, LogOut, LogIn, Ban, CalendarClock } from "lucide-react";
+import { Plus, CalendarDays, Search, UserPlus, X, Check, ClipboardList, Clock, CheckCircle2, Pencil, Trash2, Banknote, LogOut, LogIn, Ban, CalendarClock, UserX } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Booking, Guest, Room, RoomCategory, Service, TreatmentPlan } from "@shared/schema";
@@ -438,6 +438,24 @@ export default function BookingsPage() {
     },
   });
 
+  const [noShowBookingId, setNoShowBookingId] = useState<string | null>(null);
+  const noShowMutation = useMutation({
+    mutationFn: (bookingId: string) =>
+      apiRequest("PATCH", `/api/bookings/${bookingId}/status`, { status: "NO_SHOW" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
+      setNoShowBookingId(null);
+      toast({ title: "Амжилттай", description: "Захиалга 'Ирээгүй' болгогдлоо" });
+    },
+    onError: (err: Error) => {
+      setNoShowBookingId(null);
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+  const canNoShow = (status: string) => status === "PENDING" || status === "CONFIRMED";
+
   const [cancelBookingId, setCancelBookingId] = useState<string | null>(null);
   const cancelMutation = useMutation({
     mutationFn: (bookingId: string) =>
@@ -593,6 +611,18 @@ export default function BookingsPage() {
                             title="Check-in хийх"
                           >
                             <LogIn className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canNoShow(booking.status) && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-amber-600 hover:text-amber-700"
+                            onClick={() => setNoShowBookingId(booking.id)}
+                            data-testid={`button-noshow-booking-${booking.id}`}
+                            title="Ирээгүй болгох"
+                          >
+                            <UserX className="h-4 w-4" />
                           </Button>
                         )}
                         {canPay(booking.status) && balance > 0 && (
@@ -979,6 +1009,27 @@ export default function BookingsPage() {
             <AlertDialogAction onClick={() => deleteBookingId && deleteBookingMutation.mutate(deleteBookingId)}
               data-testid="button-confirm-delete-booking">
               Устгах
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!noShowBookingId} onOpenChange={(open) => { if (!open) setNoShowBookingId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ирээгүй болгох</AlertDialogTitle>
+            <AlertDialogDescription>
+              Зочин ирэх өдрөө ирээгүй гэж тэмдэглэх үү? Өрөө AVAILABLE болно. Дараа нь оройтлын check-in хийх боломжтой.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-dismiss-noshow-booking">Буцах</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 text-white hover:bg-amber-700"
+              onClick={() => noShowBookingId && noShowMutation.mutate(noShowBookingId)}
+              data-testid="button-confirm-noshow-booking"
+            >
+              Ирээгүй болгох
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
