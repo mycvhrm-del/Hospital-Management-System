@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Search, Banknote, LogOut, User, Calendar, CreditCard, DollarSign, TrendingUp } from "lucide-react";
+import { Search, Banknote, LogOut, User, Calendar, CreditCard, DollarSign, TrendingUp, CalendarPlus } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Booking, Guest, Room, RoomCategory, Transaction } from "@shared/schema";
@@ -46,6 +46,9 @@ export default function SalesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [paymentBooking, setPaymentBooking] = useState<Booking | null>(null);
   const [checkoutBooking, setCheckoutBooking] = useState<Booking | null>(null);
+  const [extendBooking, setExtendBooking] = useState<Booking | null>(null);
+  const [extendDate, setExtendDate] = useState("");
+  const today = new Date().toISOString().split("T")[0];
 
   const { data: salesBookings = [], isLoading } = useQuery<Booking[]>({
     queryKey: ["/api/bookings", "active-stays-with-checkouts"],
@@ -168,6 +171,21 @@ export default function SalesPage() {
     onError: (err: Error) => {
       queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
+      toast({ title: "Алдаа", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const extendMutation = useMutation({
+    mutationFn: ({ id, newCheckOut }: { id: string; newCheckOut: string }) =>
+      apiRequest("POST", `/api/bookings/${id}/extend`, { newCheckOut }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/room-grid"] });
+      setExtendBooking(null);
+      setExtendDate("");
+      toast({ title: "Амжилттай", description: "Захиалга сунгагдлаа" });
+    },
+    onError: (err: Error) => {
       toast({ title: "Алдаа", description: err.message, variant: "destructive" });
     },
   });
@@ -336,6 +354,18 @@ export default function SalesPage() {
                             <Banknote className="h-4 w-4" />
                           </Button>
                         )}
+                        {(booking.status === "CHECKED_IN" || booking.status === "EXTENDED") && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            title="Хугацаа сунгах"
+                            onClick={() => { setExtendBooking(booking); setExtendDate(""); }}
+                            data-testid={`button-sale-extend-${booking.id}`}
+                          >
+                            <CalendarPlus className="h-4 w-4" />
+                          </Button>
+                        )}
                         {booking.status === "CHECKED_IN" && (
                           <Button
                             size="icon"
@@ -492,6 +522,45 @@ export default function SalesPage() {
               </Form>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!extendBooking} onOpenChange={(open) => { if (!open) { setExtendBooking(null); setExtendDate(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle data-testid="text-sale-extend-title">Хугацаа сунгах</DialogTitle>
+            <DialogDescription>
+              {extendBooking && (() => {
+                const guest = guestMap[extendBooking.guestId];
+                const room = roomMap[extendBooking.roomId];
+                return `${guest ? `${guest.lastName} ${guest.firstName}` : "—"} · Өрөө ${room?.roomNumber || "—"} | Одоогийн checkout: ${new Date(extendBooking.checkOut).toLocaleDateString("mn-MN")}`;
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Шинэ checkout огноо</label>
+              <Input
+                type="date"
+                value={extendDate}
+                min={extendBooking ? new Date(new Date(extendBooking.checkOut).getTime() + 86400000).toISOString().split("T")[0] : today}
+                onChange={(e) => setExtendDate(e.target.value)}
+                data-testid="input-sale-extend-checkout-date"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setExtendBooking(null); setExtendDate(""); }} data-testid="button-sale-cancel-extend">
+                Цуцлах
+              </Button>
+              <Button
+                onClick={() => extendBooking && extendMutation.mutate({ id: extendBooking.id, newCheckOut: extendDate })}
+                disabled={!extendDate || extendMutation.isPending}
+                data-testid="button-sale-confirm-extend"
+              >
+                {extendMutation.isPending ? "Сунгаж байна..." : "Сунгах"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
