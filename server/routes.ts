@@ -774,15 +774,17 @@ export async function registerRoutes(
   });
 
   app.post("/api/inventory/:id/purchases", async (req, res) => {
-    const { quantity, purchaseDate, note } = req.body;
+    const { quantity, purchasePrice, purchaseDate, note } = req.body;
     const qty = Number(quantity);
     if (!qty || qty <= 0 || isNaN(qty)) return res.status(400).json({ message: "quantity must be a positive number" });
     if (!purchaseDate || isNaN(Date.parse(purchaseDate))) return res.status(400).json({ message: "valid purchaseDate required" });
     const item = await storage.getInventoryItem(req.params.id);
     if (!item) return res.status(404).json({ message: "Inventory item not found" });
+    const parsedPrice = purchasePrice && Number(purchasePrice) > 0 ? String(Number(purchasePrice)) : null;
     const purchase = await storage.createInventoryPurchase({
       inventoryId: req.params.id,
       quantity: String(qty),
+      purchasePrice: parsedPrice,
       purchaseDate: new Date(purchaseDate),
       note: note || null,
     });

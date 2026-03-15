@@ -41,7 +41,8 @@ const inventoryFormSchema = z.object({
 type InventoryFormValues = z.infer<typeof inventoryFormSchema>;
 
 const purchaseFormSchema = z.object({
-  quantity: z.string().min(1, "Тоо ширхэг оруулна уу"),
+  quantity: z.string().min(1, "Тоо хэмжээ оруулна уу"),
+  purchasePrice: z.string().optional(),
   purchaseDate: z.string().min(1, "Огноо оруулна уу"),
   note: z.string().optional(),
 });
@@ -69,23 +70,41 @@ function PurchaseHistory({ itemId }: { itemId: string }) {
         <TableRow>
           <TableHead>Огноо</TableHead>
           <TableHead className="text-right">Тоо хэмжээ</TableHead>
+          <TableHead className="text-right">Үлдэгдэл</TableHead>
+          <TableHead className="text-right">Нэгжийн үнэ</TableHead>
+          <TableHead className="text-right">Нийт дүн</TableHead>
           <TableHead>Тэмдэглэл</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {purchases.map((p) => (
-          <TableRow key={p.id} data-testid={`row-purchase-${p.id}`}>
+        {purchases.map((p) => {
+          const total = p.purchasePrice ? Number(p.quantity) * Number(p.purchasePrice) : null;
+          const isUsedUp = Number(p.remainingQuantity) === 0;
+          return (
+          <TableRow key={p.id} data-testid={`row-purchase-${p.id}`} className={isUsedUp ? "opacity-50" : ""}>
             <TableCell data-testid={`text-purchase-date-${p.id}`}>
               {new Date(p.purchaseDate).toLocaleDateString("mn-MN")}
             </TableCell>
             <TableCell className="text-right font-medium" data-testid={`text-purchase-qty-${p.id}`}>
               {Number(p.quantity).toLocaleString()}
             </TableCell>
+            <TableCell className="text-right" data-testid={`text-purchase-remaining-${p.id}`}>
+              <span className={Number(p.remainingQuantity) > 0 ? "text-green-600 font-medium" : "text-muted-foreground"}>
+                {Number(p.remainingQuantity).toLocaleString()}
+              </span>
+            </TableCell>
+            <TableCell className="text-right" data-testid={`text-purchase-price-${p.id}`}>
+              {p.purchasePrice ? `${Number(p.purchasePrice).toLocaleString()}₮` : "—"}
+            </TableCell>
+            <TableCell className="text-right" data-testid={`text-purchase-total-${p.id}`}>
+              {total !== null ? `${total.toLocaleString()}₮` : "—"}
+            </TableCell>
             <TableCell className="text-sm text-muted-foreground" data-testid={`text-purchase-note-${p.id}`}>
               {p.note || "—"}
             </TableCell>
           </TableRow>
-        ))}
+          );
+        })}
       </TableBody>
     </Table>
   );
@@ -110,7 +129,7 @@ export default function InventoryPage() {
 
   const purchaseForm = useForm<PurchaseFormValues>({
     resolver: zodResolver(purchaseFormSchema),
-    defaultValues: { quantity: "", purchaseDate: new Date().toISOString().split("T")[0], note: "" },
+    defaultValues: { quantity: "", purchasePrice: "", purchaseDate: new Date().toISOString().split("T")[0], note: "" },
   });
 
   const openCreate = () => {
@@ -133,7 +152,7 @@ export default function InventoryPage() {
 
   const openPurchase = (item: Inventory) => {
     setPurchaseDialogItem(item);
-    purchaseForm.reset({ quantity: "", purchaseDate: new Date().toISOString().split("T")[0], note: "" });
+    purchaseForm.reset({ quantity: "", purchasePrice: "", purchaseDate: new Date().toISOString().split("T")[0], note: "" });
   };
 
   const createMutation = useMutation({
@@ -439,19 +458,34 @@ export default function InventoryPage() {
           </DialogHeader>
           <Form {...purchaseForm}>
             <form onSubmit={purchaseForm.handleSubmit(onPurchaseSubmit)} className="space-y-4">
-              <FormField
-                control={purchaseForm.control}
-                name="quantity"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Тоо хэмжээ {purchaseDialogItem && `(${purchaseDialogItem.unit})`}</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" min="0.01" {...field} data-testid="input-purchase-quantity" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={purchaseForm.control}
+                  name="quantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Тоо хэмжээ {purchaseDialogItem && `(${purchaseDialogItem.unit})`}</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.01" min="0.01" {...field} data-testid="input-purchase-quantity" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={purchaseForm.control}
+                  name="purchasePrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Нэгжийн үнэ (₮) <span className="text-muted-foreground font-normal text-xs">— заавал биш</span></FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.01" min="0" placeholder="0" {...field} data-testid="input-purchase-price" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               <FormField
                 control={purchaseForm.control}
                 name="purchaseDate"

@@ -122,6 +122,8 @@ export const materialUsages = pgTable("material_usages", {
   treatmentId: varchar("treatment_id").notNull().references(() => treatmentPlans.id, { onDelete: "restrict" }),
   inventoryId: varchar("inventory_id").notNull().references(() => inventory.id, { onDelete: "restrict" }),
   quantityUsed: decimal("quantity_used", { precision: 10, scale: 2 }).notNull(),
+  unitCost: decimal("unit_cost", { precision: 12, scale: 2 }),
+  totalCost: decimal("total_cost", { precision: 12, scale: 2 }),
   usageDate: timestamp("usage_date").defaultNow().notNull(),
 });
 
@@ -136,6 +138,8 @@ export const inventoryPurchases = pgTable("inventory_purchases", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   inventoryId: varchar("inventory_id").notNull().references(() => inventory.id, { onDelete: "restrict" }),
   quantity: decimal("quantity", { precision: 10, scale: 2 }).notNull(),
+  remainingQuantity: decimal("remaining_quantity", { precision: 10, scale: 2 }).notNull().default(sql`0`),
+  purchasePrice: decimal("purchase_price", { precision: 12, scale: 2 }),
   purchaseDate: timestamp("purchase_date").notNull(),
   note: text("note"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

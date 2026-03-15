@@ -1,4 +1,4 @@
-import { eq, inArray, and, or, ne, lt, gt, gte, lte, sql, ilike, count, desc, isNull } from "drizzle-orm";
+import { eq, inArray, and, or, ne, lt, gt, gte, lte, sql, ilike, count, desc, isNull, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
@@ -465,7 +465,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createInventoryPurchase(data: InsertInventoryPurchase): Promise<InventoryPurchase> {
-    const [purchase] = await db.insert(inventoryPurchases).values(data).returning();
+    const [purchase] = await db.insert(inventoryPurchases).values({
+      ...data,
+      remainingQuantity: data.quantity,
+    }).returning();
     const item = await this.getInventoryItem(data.inventoryId);
     if (item) {
       const newStock = Number(item.stockQuantity) + Number(data.quantity);
@@ -526,14 +529,42 @@ export class DatabaseStorage implements IStorage {
           if (invItem && Number(invItem.stockQuantity) < Number(mat.quantityNeeded)) {
             throw new Error(`Нөөц хүрэлцэхгүй байна: ${invItem.itemName} (байгаа: ${invItem.stockQuantity}, шаардлагатай: ${mat.quantityNeeded})`);
           }
+
+          // FIFO: oldest batches first
+          const batches = await tx.select().from(inventoryPurchases)
+            .where(and(
+              eq(inventoryPurchases.inventoryId, mat.inventoryId),
+              gt(inventoryPurchases.remainingQuantity, "0")
+            ))
+            .orderBy(asc(inventoryPurchases.purchaseDate));
+
+          let needed = Number(mat.quantityNeeded);
+          let totalCost = 0;
+          for (const batch of batches) {
+            if (needed <= 0) break;
+            const avail = Number(batch.remainingQuantity);
+            const price = Number(batch.purchasePrice ?? 0);
+            const take = Math.min(needed, avail);
+            totalCost += take * price;
+            needed -= take;
+            await tx.update(inventoryPurchases)
+              .set({ remainingQuantity: String(avail - take) })
+              .where(eq(inventoryPurchases.id, batch.id));
+          }
+
+          const qty = Number(mat.quantityNeeded);
+          const unitCost = qty > 0 ? totalCost / qty : 0;
+
           await tx.update(inventory)
-            .set({ stockQuantity: sql`${inventory.stockQuantity} - ${Number(mat.quantityNeeded)}` })
+            .set({ stockQuantity: sql`${inventory.stockQuantity} - ${qty}` })
             .where(eq(inventory.id, mat.inventoryId));
 
           await tx.insert(materialUsages).values({
             treatmentId: id,
             inventoryId: mat.inventoryId,
             quantityUsed: mat.quantityNeeded,
+            unitCost: unitCost > 0 ? String(unitCost) : null,
+            totalCost: totalCost > 0 ? String(totalCost) : null,
             usageDate: completedAt,
           });
         }
