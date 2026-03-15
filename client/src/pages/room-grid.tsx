@@ -183,6 +183,16 @@ function RoomCard({ room, onQuickBook, onPayment, onCheckout }: { room: RoomGrid
               {room.guest.isVip && <Crown className="h-3 w-3 text-amber-500" />}
             </div>
           )}
+          {room.activeBooking && (
+            <div className="flex items-center gap-1 mt-0.5" data-testid={`text-dates-${room.roomNumber}`}>
+              <Calendar className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+              <span className="text-[10px] text-muted-foreground">
+                {new Date(room.activeBooking.checkIn).toLocaleDateString("mn-MN", { month: "2-digit", day: "2-digit" })}
+                {" – "}
+                {new Date(room.activeBooking.checkOut).toLocaleDateString("mn-MN", { month: "2-digit", day: "2-digit" })}
+              </span>
+            </div>
+          )}
           {isDueOut && (
             <span className="text-[10px] font-semibold text-orange-600 dark:text-orange-400 flex items-center gap-1">
               <CalendarCheck className="h-3 w-3" />
