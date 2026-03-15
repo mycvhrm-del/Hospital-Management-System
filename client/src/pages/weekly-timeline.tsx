@@ -386,6 +386,10 @@ export default function WeeklyTimelinePage() {
             {STATUS_LABELS[status]}
           </span>
         ))}
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm bg-orange-500/80" />
+          Гарах дөхсөн
+        </span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm border border-dashed" /> Сул (дарж захиалах)</span>
         <span className="w-px h-3 bg-border mx-1" />
         <span className="text-xs font-medium text-foreground">Өрөөний төлөв:</span>
@@ -701,7 +705,11 @@ function BookingCell({
   const isStart = ci >= dayStart && ci < new Date(dayStart.getTime() + 86400000);
   const isEnd = co > dayStart && co <= new Date(dayStart.getTime() + 86400000);
 
-  const isDueOut = room.status === "DUE_OUT" && (booking.status === "CHECKED_IN" || booking.status === "EXTENDED");
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart.getTime() + 86400000);
+  const checkoutIsToday = co >= todayStart && co < todayEnd;
+  const isDueOut = checkoutIsToday && (booking.status === "CHECKED_IN" || booking.status === "EXTENDED");
   const colorClass = isDueOut ? "bg-orange-500/80" : (STATUS_COLORS[booking.status] || "bg-gray-400/80");
   const roundLeft = isStart ? "rounded-l-md" : "";
   const roundRight = isEnd ? "rounded-r-md" : "";
