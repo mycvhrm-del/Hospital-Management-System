@@ -1,4 +1,4 @@
-import { eq, inArray, and, or, ne, lt, gt, gte, lte, sql, ilike, count, desc } from "drizzle-orm";
+import { eq, inArray, and, or, ne, lt, gt, gte, lte, sql, ilike, count, desc, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
@@ -42,13 +42,15 @@ export interface IStorage {
   getRoom(id: string): Promise<Room | undefined>;
   createRoom(data: InsertRoom): Promise<Room>;
   updateRoom(id: string, data: Partial<InsertRoom>): Promise<Room | undefined>;
-  deleteRoom(id: string): Promise<boolean>;
+  deleteRoom(id: string, deletedBy?: string): Promise<boolean>;
+  restoreRoom(id: string): Promise<boolean>;
 
   getGuests(): Promise<Guest[]>;
   getGuest(id: string): Promise<Guest | undefined>;
   createGuest(data: InsertGuest): Promise<Guest>;
   updateGuest(id: string, data: Partial<InsertGuest>): Promise<Guest | undefined>;
-  deleteGuest(id: string): Promise<boolean>;
+  deleteGuest(id: string, deletedBy?: string): Promise<boolean>;
+  restoreGuest(id: string): Promise<boolean>;
   getFamilyMembers(parentId: string): Promise<Guest[]>;
   getBooking(id: string): Promise<Booking | undefined>;
   getGuestBookings(guestId: string): Promise<Booking[]>;
@@ -60,7 +62,8 @@ export interface IStorage {
   createBooking(data: any): Promise<Booking>;
   updateBooking(id: string, data: Partial<any>): Promise<Booking | undefined>;
   updateBookingStatus(id: string, status: string): Promise<Booking | undefined>;
-  deleteBooking(id: string): Promise<boolean>;
+  deleteBooking(id: string, deletedBy?: string): Promise<boolean>;
+  restoreBooking(id: string): Promise<boolean>;
   createTransaction(data: any): Promise<Transaction>;
   getTransactionsByBookingIds(bookingIds: string[]): Promise<Transaction[]>;
 
@@ -68,7 +71,8 @@ export interface IStorage {
   getService(id: string): Promise<Service | undefined>;
   createService(data: InsertService): Promise<Service>;
   updateService(id: string, data: Partial<InsertService>): Promise<Service | undefined>;
-  deleteService(id: string): Promise<boolean>;
+  deleteService(id: string, deletedBy?: string): Promise<boolean>;
+  restoreService(id: string): Promise<boolean>;
 
   getBookingServices(bookingId: string): Promise<BookingService[]>;
   getBookingServiceById(id: string): Promise<BookingService | undefined>;
@@ -79,7 +83,8 @@ export interface IStorage {
   getInventoryItem(id: string): Promise<Inventory | undefined>;
   createInventoryItem(data: InsertInventory): Promise<Inventory>;
   updateInventoryItem(id: string, data: Partial<InsertInventory>): Promise<Inventory | undefined>;
-  deleteInventoryItem(id: string): Promise<boolean>;
+  deleteInventoryItem(id: string, deletedBy?: string): Promise<boolean>;
+  restoreInventoryItem(id: string): Promise<boolean>;
 
   getInventoryPurchases(inventoryId: string): Promise<InventoryPurchase[]>;
   createInventoryPurchase(data: InsertInventoryPurchase): Promise<InventoryPurchase>;
@@ -94,12 +99,14 @@ export interface IStorage {
   getAllTreatmentPlans(): Promise<TreatmentPlan[]>;
   createTreatmentPlan(data: InsertTreatmentPlan): Promise<TreatmentPlan>;
   completeTreatmentPlan(id: string, completedAt: Date): Promise<TreatmentPlan | undefined>;
+  deleteTreatmentPlan(id: string, deletedBy?: string): Promise<boolean>;
 
   getStaffMembers(): Promise<Staff[]>;
   getStaffMember(id: string): Promise<Staff | undefined>;
   createStaffMember(data: InsertStaff): Promise<Staff>;
   updateStaffMember(id: string, data: Partial<InsertStaff>): Promise<Staff | undefined>;
-  deleteStaffMember(id: string): Promise<boolean>;
+  deleteStaffMember(id: string, deletedBy?: string): Promise<boolean>;
+  restoreStaffMember(id: string): Promise<boolean>;
 
   createAuditLog(data: InsertAuditLog): Promise<AuditLog>;
   getAuditLogs(): Promise<AuditLog[]>;
@@ -184,11 +191,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getRooms(): Promise<Room[]> {
-    return db.select().from(rooms);
+    return db.select().from(rooms).where(isNull(rooms.deletedAt));
   }
 
   async getRoom(id: string): Promise<Room | undefined> {
-    const [room] = await db.select().from(rooms).where(eq(rooms.id, id));
+    const [room] = await db.select().from(rooms).where(and(eq(rooms.id, id), isNull(rooms.deletedAt)));
     return room;
   }
 
@@ -198,21 +205,32 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateRoom(id: string, data: Partial<InsertRoom>): Promise<Room | undefined> {
-    const [room] = await db.update(rooms).set(data).where(eq(rooms.id, id)).returning();
+    const [room] = await db.update(rooms).set(data).where(and(eq(rooms.id, id), isNull(rooms.deletedAt))).returning();
     return room;
   }
 
-  async deleteRoom(id: string): Promise<boolean> {
-    const result = await db.delete(rooms).where(eq(rooms.id, id)).returning();
+  async deleteRoom(id: string, deletedBy = "system"): Promise<boolean> {
+    const result = await db.update(rooms)
+      .set({ deletedAt: new Date(), deletedBy })
+      .where(and(eq(rooms.id, id), isNull(rooms.deletedAt)))
+      .returning();
+    return result.length > 0;
+  }
+
+  async restoreRoom(id: string): Promise<boolean> {
+    const result = await db.update(rooms)
+      .set({ deletedAt: null, deletedBy: null })
+      .where(eq(rooms.id, id))
+      .returning();
     return result.length > 0;
   }
 
   async getGuests(): Promise<Guest[]> {
-    return db.select().from(guests);
+    return db.select().from(guests).where(isNull(guests.deletedAt));
   }
 
   async getGuest(id: string): Promise<Guest | undefined> {
-    const [guest] = await db.select().from(guests).where(eq(guests.id, id));
+    const [guest] = await db.select().from(guests).where(and(eq(guests.id, id), isNull(guests.deletedAt)));
     return guest;
   }
 
@@ -222,36 +240,47 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateGuest(id: string, data: Partial<InsertGuest>): Promise<Guest | undefined> {
-    const [guest] = await db.update(guests).set(data).where(eq(guests.id, id)).returning();
+    const [guest] = await db.update(guests).set(data).where(and(eq(guests.id, id), isNull(guests.deletedAt))).returning();
     return guest;
   }
 
-  async deleteGuest(id: string): Promise<boolean> {
-    const result = await db.delete(guests).where(eq(guests.id, id)).returning();
+  async deleteGuest(id: string, deletedBy = "system"): Promise<boolean> {
+    const result = await db.update(guests)
+      .set({ deletedAt: new Date(), deletedBy })
+      .where(and(eq(guests.id, id), isNull(guests.deletedAt)))
+      .returning();
+    return result.length > 0;
+  }
+
+  async restoreGuest(id: string): Promise<boolean> {
+    const result = await db.update(guests)
+      .set({ deletedAt: null, deletedBy: null })
+      .where(eq(guests.id, id))
+      .returning();
     return result.length > 0;
   }
 
   async getFamilyMembers(parentId: string): Promise<Guest[]> {
-    return db.select().from(guests).where(eq(guests.parentId, parentId));
+    return db.select().from(guests).where(and(eq(guests.parentId, parentId), isNull(guests.deletedAt)));
   }
 
   async getBooking(id: string): Promise<Booking | undefined> {
-    const [booking] = await db.select().from(bookings).where(eq(bookings.id, id));
+    const [booking] = await db.select().from(bookings).where(and(eq(bookings.id, id), isNull(bookings.deletedAt)));
     return booking;
   }
 
   async getGuestBookings(guestId: string): Promise<Booking[]> {
-    return db.select().from(bookings).where(eq(bookings.guestId, guestId));
+    return db.select().from(bookings).where(and(eq(bookings.guestId, guestId), isNull(bookings.deletedAt)));
   }
 
   async getFamilyBookings(parentId: string): Promise<Booking[]> {
     const familyMembers = await this.getFamilyMembers(parentId);
     const familyIds = [parentId, ...familyMembers.map(m => m.id)];
-    return db.select().from(bookings).where(inArray(bookings.guestId, familyIds));
+    return db.select().from(bookings).where(and(inArray(bookings.guestId, familyIds), isNull(bookings.deletedAt)));
   }
 
   async getAllBookings(): Promise<Booking[]> {
-    return db.select().from(bookings);
+    return db.select().from(bookings).where(isNull(bookings.deletedAt));
   }
 
   async getBookingTransactions(bookingId: string): Promise<Transaction[]> {
@@ -262,6 +291,7 @@ export class DatabaseStorage implements IStorage {
     const [booking] = await db.select().from(bookings).where(
       and(
         eq(bookings.roomId, roomId),
+        isNull(bookings.deletedAt),
         or(
           eq(bookings.status, "CONFIRMED"),
           eq(bookings.status, "CHECKED_IN"),
@@ -275,8 +305,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async checkBookingOverlap(roomId: string, checkIn: Date, checkOut: Date, excludeBookingId?: string): Promise<Booking | undefined> {
-    const conditions = [
+    const conditions: any[] = [
       eq(bookings.roomId, roomId),
+      isNull(bookings.deletedAt),
       lt(bookings.checkIn, checkOut),
       gt(bookings.checkOut, checkIn),
       or(
@@ -298,20 +329,35 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateBooking(id: string, data: Partial<any>): Promise<Booking | undefined> {
-    const [booking] = await db.update(bookings).set(data).where(eq(bookings.id, id)).returning();
+    const [booking] = await db.update(bookings).set(data).where(and(eq(bookings.id, id), isNull(bookings.deletedAt))).returning();
     return booking;
   }
 
   async updateBookingStatus(id: string, status: string): Promise<Booking | undefined> {
-    const [booking] = await db.update(bookings).set({ status: status as any }).where(eq(bookings.id, id)).returning();
+    const [booking] = await db.update(bookings)
+      .set({ status: status as any })
+      .where(and(eq(bookings.id, id), isNull(bookings.deletedAt)))
+      .returning();
     return booking;
   }
 
-  async deleteBooking(id: string): Promise<boolean> {
-    await db.delete(bookingServices).where(eq(bookingServices.bookingId, id));
-    await db.delete(transactions).where(eq(transactions.bookingId, id));
-    await db.delete(treatmentPlans).where(eq(treatmentPlans.bookingId, id));
-    const result = await db.delete(bookings).where(eq(bookings.id, id)).returning();
+  async deleteBooking(id: string, deletedBy = "system"): Promise<boolean> {
+    const now = new Date();
+    await db.update(treatmentPlans)
+      .set({ deletedAt: now, deletedBy })
+      .where(and(eq(treatmentPlans.bookingId, id), isNull(treatmentPlans.deletedAt)));
+    const result = await db.update(bookings)
+      .set({ deletedAt: now, deletedBy })
+      .where(and(eq(bookings.id, id), isNull(bookings.deletedAt)))
+      .returning();
+    return result.length > 0;
+  }
+
+  async restoreBooking(id: string): Promise<boolean> {
+    const result = await db.update(bookings)
+      .set({ deletedAt: null, deletedBy: null })
+      .where(eq(bookings.id, id))
+      .returning();
     return result.length > 0;
   }
 
@@ -326,11 +372,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getServices(): Promise<Service[]> {
-    return db.select().from(services);
+    return db.select().from(services).where(isNull(services.deletedAt));
   }
 
   async getService(id: string): Promise<Service | undefined> {
-    const [service] = await db.select().from(services).where(eq(services.id, id));
+    const [service] = await db.select().from(services).where(and(eq(services.id, id), isNull(services.deletedAt)));
     return service;
   }
 
@@ -340,12 +386,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateService(id: string, data: Partial<InsertService>): Promise<Service | undefined> {
-    const [service] = await db.update(services).set(data).where(eq(services.id, id)).returning();
+    const [service] = await db.update(services).set(data).where(and(eq(services.id, id), isNull(services.deletedAt))).returning();
     return service;
   }
 
-  async deleteService(id: string): Promise<boolean> {
-    const result = await db.delete(services).where(eq(services.id, id)).returning();
+  async deleteService(id: string, deletedBy = "system"): Promise<boolean> {
+    const result = await db.update(services)
+      .set({ deletedAt: new Date(), deletedBy })
+      .where(and(eq(services.id, id), isNull(services.deletedAt)))
+      .returning();
+    return result.length > 0;
+  }
+
+  async restoreService(id: string): Promise<boolean> {
+    const result = await db.update(services)
+      .set({ deletedAt: null, deletedBy: null })
+      .where(eq(services.id, id))
+      .returning();
     return result.length > 0;
   }
 
@@ -369,11 +426,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getInventoryItems(): Promise<Inventory[]> {
-    return db.select().from(inventory);
+    return db.select().from(inventory).where(isNull(inventory.deletedAt));
   }
 
   async getInventoryItem(id: string): Promise<Inventory | undefined> {
-    const [item] = await db.select().from(inventory).where(eq(inventory.id, id));
+    const [item] = await db.select().from(inventory).where(and(eq(inventory.id, id), isNull(inventory.deletedAt)));
     return item;
   }
 
@@ -383,12 +440,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateInventoryItem(id: string, data: Partial<InsertInventory>): Promise<Inventory | undefined> {
-    const [item] = await db.update(inventory).set(data).where(eq(inventory.id, id)).returning();
+    const [item] = await db.update(inventory).set(data).where(and(eq(inventory.id, id), isNull(inventory.deletedAt))).returning();
     return item;
   }
 
-  async deleteInventoryItem(id: string): Promise<boolean> {
-    const result = await db.delete(inventory).where(eq(inventory.id, id)).returning();
+  async deleteInventoryItem(id: string, deletedBy = "system"): Promise<boolean> {
+    const result = await db.update(inventory)
+      .set({ deletedAt: new Date(), deletedBy })
+      .where(and(eq(inventory.id, id), isNull(inventory.deletedAt)))
+      .returning();
+    return result.length > 0;
+  }
+
+  async restoreInventoryItem(id: string): Promise<boolean> {
+    const result = await db.update(inventory)
+      .set({ deletedAt: null, deletedBy: null })
+      .where(eq(inventory.id, id))
+      .returning();
     return result.length > 0;
   }
 
@@ -429,7 +497,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTreatmentPlans(bookingId: string): Promise<TreatmentPlan[]> {
-    return db.select().from(treatmentPlans).where(eq(treatmentPlans.bookingId, bookingId));
+    return db.select().from(treatmentPlans).where(and(eq(treatmentPlans.bookingId, bookingId), isNull(treatmentPlans.deletedAt)));
   }
 
   async createTreatmentPlan(data: InsertTreatmentPlan): Promise<TreatmentPlan> {
@@ -441,7 +509,7 @@ export class DatabaseStorage implements IStorage {
     return await db.transaction(async (tx) => {
       const [plan] = await tx.update(treatmentPlans)
         .set({ status: "COMPLETED", completedAt })
-        .where(and(eq(treatmentPlans.id, id), ne(treatmentPlans.status, "COMPLETED")))
+        .where(and(eq(treatmentPlans.id, id), ne(treatmentPlans.status, "COMPLETED"), isNull(treatmentPlans.deletedAt)))
         .returning();
 
       if (!plan) {
@@ -456,7 +524,7 @@ export class DatabaseStorage implements IStorage {
         for (const mat of bom) {
           const [invItem] = await tx.select().from(inventory).where(eq(inventory.id, mat.inventoryId));
           if (invItem && Number(invItem.stockQuantity) < Number(mat.quantityNeeded)) {
-            throw new Error(`Нөөц хүрэлцэхгүй байна: ${invItem.name} (байгаа: ${invItem.stockQuantity}, шаардлагатай: ${mat.quantityNeeded})`);
+            throw new Error(`Нөөц хүрэлцэхгүй байна: ${invItem.itemName} (байгаа: ${invItem.stockQuantity}, шаардлагатай: ${mat.quantityNeeded})`);
           }
           await tx.update(inventory)
             .set({ stockQuantity: sql`${inventory.stockQuantity} - ${Number(mat.quantityNeeded)}` })
@@ -476,15 +544,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllTreatmentPlans(): Promise<TreatmentPlan[]> {
-    return db.select().from(treatmentPlans);
+    return db.select().from(treatmentPlans).where(isNull(treatmentPlans.deletedAt));
+  }
+
+  async deleteTreatmentPlan(id: string, deletedBy = "system"): Promise<boolean> {
+    const result = await db.update(treatmentPlans)
+      .set({ deletedAt: new Date(), deletedBy })
+      .where(and(eq(treatmentPlans.id, id), isNull(treatmentPlans.deletedAt)))
+      .returning();
+    return result.length > 0;
   }
 
   async getStaffMembers(): Promise<Staff[]> {
-    return db.select().from(staff);
+    return db.select().from(staff).where(isNull(staff.deletedAt));
   }
 
   async getStaffMember(id: string): Promise<Staff | undefined> {
-    const [member] = await db.select().from(staff).where(eq(staff.id, id));
+    const [member] = await db.select().from(staff).where(and(eq(staff.id, id), isNull(staff.deletedAt)));
     return member;
   }
 
@@ -494,12 +570,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateStaffMember(id: string, data: Partial<InsertStaff>): Promise<Staff | undefined> {
-    const [member] = await db.update(staff).set(data).where(eq(staff.id, id)).returning();
+    const [member] = await db.update(staff).set(data).where(and(eq(staff.id, id), isNull(staff.deletedAt))).returning();
     return member;
   }
 
-  async deleteStaffMember(id: string): Promise<boolean> {
-    const result = await db.delete(staff).where(eq(staff.id, id)).returning();
+  async deleteStaffMember(id: string, deletedBy = "system"): Promise<boolean> {
+    const result = await db.update(staff)
+      .set({ deletedAt: new Date(), deletedBy })
+      .where(and(eq(staff.id, id), isNull(staff.deletedAt)))
+      .returning();
+    return result.length > 0;
+  }
+
+  async restoreStaffMember(id: string): Promise<boolean> {
+    const result = await db.update(staff)
+      .set({ deletedAt: null, deletedBy: null })
+      .where(eq(staff.id, id))
+      .returning();
     return result.length > 0;
   }
 
@@ -527,6 +614,7 @@ export class DatabaseStorage implements IStorage {
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     return db.select().from(bookings).where(
       and(
+        isNull(bookings.deletedAt),
         lt(bookings.checkIn, todayMidnight),
         or(
           eq(bookings.status, "PENDING"),
@@ -544,6 +632,7 @@ export class DatabaseStorage implements IStorage {
     if (now < triggerTime) return [];
     return db.select().from(bookings).where(
       and(
+        isNull(bookings.deletedAt),
         gt(bookings.checkOut, todayStart),
         lt(bookings.checkOut, todayEnd),
         or(
@@ -558,12 +647,13 @@ export class DatabaseStorage implements IStorage {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
-    const dueOutRooms = await db.select().from(rooms).where(eq(rooms.status, "DUE_OUT"));
+    const dueOutRooms = await db.select().from(rooms).where(and(eq(rooms.status, "DUE_OUT"), isNull(rooms.deletedAt)));
     const result: Room[] = [];
     for (const room of dueOutRooms) {
       const [booking] = await db.select().from(bookings).where(
         and(
           eq(bookings.roomId, room.id),
+          isNull(bookings.deletedAt),
           or(
             eq(bookings.status, "CHECKED_IN"),
             eq(bookings.status, "EXTENDED")
@@ -595,12 +685,15 @@ export class DatabaseStorage implements IStorage {
 
   async getActiveBookingsForAllRooms(): Promise<Record<string, Booking>> {
     const activeBookings = await db.select().from(bookings).where(
-      or(
-        eq(bookings.status, "CONFIRMED"),
-        eq(bookings.status, "CHECKED_IN"),
-        eq(bookings.status, "EXTENDED"),
-        eq(bookings.status, "PENDING"),
-        eq(bookings.status, "NO_SHOW")
+      and(
+        isNull(bookings.deletedAt),
+        or(
+          eq(bookings.status, "CONFIRMED"),
+          eq(bookings.status, "CHECKED_IN"),
+          eq(bookings.status, "EXTENDED"),
+          eq(bookings.status, "PENDING"),
+          eq(bookings.status, "NO_SHOW")
+        )
       )
     );
     const map: Record<string, Booking> = {};
@@ -611,7 +704,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDashboardStats() {
-    const allRooms = await db.select().from(rooms);
+    const allRooms = await db.select().from(rooms).where(isNull(rooms.deletedAt));
     const roomCountsByStatus: Record<string, number> = {};
     for (const room of allRooms) {
       roomCountsByStatus[room.status] = (roomCountsByStatus[room.status] || 0) + 1;
@@ -627,10 +720,13 @@ export class DatabaseStorage implements IStorage {
       and(gte(transactions.createdAt, todayStart), lt(transactions.createdAt, todayEnd))
     );
 
-    const [totalRow] = await db.select({ total: count() }).from(bookings);
+    const [totalRow] = await db.select({ total: count() }).from(bookings).where(isNull(bookings.deletedAt));
 
     const [activeRow] = await db.select({ total: count() }).from(bookings).where(
-      or(eq(bookings.status, "CHECKED_IN"), eq(bookings.status, "EXTENDED"))
+      and(
+        isNull(bookings.deletedAt),
+        or(eq(bookings.status, "CHECKED_IN"), eq(bookings.status, "EXTENDED"))
+      )
     );
 
     return {
@@ -655,6 +751,7 @@ export class DatabaseStorage implements IStorage {
   async getBookingsByDateRange(start: Date, end: Date): Promise<Booking[]> {
     return db.select().from(bookings).where(
       and(
+        isNull(bookings.deletedAt),
         lt(bookings.checkIn, end),
         gt(bookings.checkOut, start),
         or(
@@ -673,27 +770,37 @@ export class DatabaseStorage implements IStorage {
     const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
     return db.select().from(treatmentPlans).where(
-      and(gte(treatmentPlans.scheduleTime, dayStart), lt(treatmentPlans.scheduleTime, dayEnd))
+      and(
+        isNull(treatmentPlans.deletedAt),
+        gte(treatmentPlans.scheduleTime, dayStart),
+        lt(treatmentPlans.scheduleTime, dayEnd)
+      )
     );
   }
 
   async getActiveStayBookings(includeRecentCheckouts = false): Promise<Booking[]> {
     if (!includeRecentCheckouts) {
       return db.select().from(bookings).where(
-        or(
-          eq(bookings.status, "CHECKED_IN"),
-          eq(bookings.status, "EXTENDED"),
-          eq(bookings.status, "DUE_OUT")
+        and(
+          isNull(bookings.deletedAt),
+          or(
+            eq(bookings.status, "CHECKED_IN"),
+            eq(bookings.status, "EXTENDED"),
+            eq(bookings.status, "DUE_OUT")
+          )
         )
       );
     }
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     return db.select().from(bookings).where(
-      or(
-        eq(bookings.status, "CHECKED_IN"),
-        eq(bookings.status, "EXTENDED"),
-        eq(bookings.status, "DUE_OUT"),
-        and(eq(bookings.status, "CHECKED_OUT"), gte(bookings.checkOut, thirtyDaysAgo))
+      and(
+        isNull(bookings.deletedAt),
+        or(
+          eq(bookings.status, "CHECKED_IN"),
+          eq(bookings.status, "EXTENDED"),
+          eq(bookings.status, "DUE_OUT"),
+          and(eq(bookings.status, "CHECKED_OUT"), gte(bookings.checkOut, thirtyDaysAgo))
+        )
       )
     );
   }
@@ -706,7 +813,7 @@ export class DatabaseStorage implements IStorage {
       return { data: [], total: 0, totalPages: 0 };
     }
 
-    const conditions = [];
+    const conditions: any[] = [isNull(bookings.deletedAt)];
     if (status && status !== "ALL") {
       conditions.push(eq(bookings.status, status as any));
     }
@@ -736,15 +843,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getGuestsPaginated(page: number, limit: number, search?: string): Promise<{ data: Guest[]; total: number; totalPages: number }> {
-    const whereClause = search
-      ? or(
+    const conditions: any[] = [isNull(guests.deletedAt)];
+    if (search) {
+      conditions.push(
+        or(
           ilike(guests.firstName, `%${search}%`),
           ilike(guests.lastName, `%${search}%`),
           ilike(guests.phone, `%${search}%`),
           ilike(guests.idNumber, `%${search}%`)
         )
-      : undefined;
-
+      );
+    }
+    const whereClause = and(...conditions);
     const offset = (page - 1) * limit;
     const [{ total }] = await db.select({ total: count() }).from(guests).where(whereClause);
     const data = await db.select().from(guests)
@@ -759,17 +869,22 @@ export class DatabaseStorage implements IStorage {
   async searchGuests(query: string, limit: number = 50): Promise<Guest[]> {
     const q = `%${query}%`;
     return db.select().from(guests).where(
-      or(
-        ilike(guests.firstName, q),
-        ilike(guests.lastName, q),
-        ilike(guests.phone, q),
-        ilike(guests.idNumber, q)
+      and(
+        isNull(guests.deletedAt),
+        or(
+          ilike(guests.firstName, q),
+          ilike(guests.lastName, q),
+          ilike(guests.phone, q),
+          ilike(guests.idNumber, q)
+        )
       )
     ).limit(limit);
   }
 
   async searchRooms(query: string): Promise<Room[]> {
-    return db.select().from(rooms).where(ilike(rooms.roomNumber, `%${query}%`));
+    return db.select().from(rooms).where(
+      and(isNull(rooms.deletedAt), ilike(rooms.roomNumber, `%${query}%`))
+    );
   }
 }
 

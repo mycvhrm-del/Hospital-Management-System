@@ -35,6 +35,8 @@ export const rooms = pgTable("rooms", {
   floorId: varchar("floor_id").notNull().references(() => floors.id, { onDelete: "restrict" }),
   categoryId: varchar("category_id").notNull().references(() => roomCategories.id, { onDelete: "cascade" }),
   status: roomStatusEnum("status").default("AVAILABLE").notNull(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: text("deleted_by"),
 });
 
 export const guests = pgTable("guests", {
@@ -48,6 +50,8 @@ export const guests = pgTable("guests", {
   loyaltyPoints: integer("loyalty_points").default(0).notNull(),
   parentId: varchar("parent_id").references((): any => guests.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: text("deleted_by"),
 }, (table) => [
   index("idx_guests_parent_id").on(table.parentId),
   index("idx_guests_created_at").on(table.createdAt),
@@ -63,6 +67,8 @@ export const bookings = pgTable("bookings", {
   guestCount: integer("guest_count").default(1).notNull(),
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
   depositPaid: decimal("deposit_paid", { precision: 10, scale: 2 }).default("0").notNull(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: text("deleted_by"),
 }, (table) => [
   index("idx_bookings_status").on(table.status),
   index("idx_bookings_room_id").on(table.roomId),
@@ -78,6 +84,8 @@ export const staff = pgTable("staff", {
   role: text("role").notNull(),
   phone: text("phone"),
   isActive: boolean("is_active").default(true).notNull(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: text("deleted_by"),
 });
 
 export const treatmentPlans = pgTable("treatment_plans", {
@@ -90,6 +98,8 @@ export const treatmentPlans = pgTable("treatment_plans", {
   status: text("status").notNull(),
   notes: text("notes"),
   completedAt: timestamp("completed_at"),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: text("deleted_by"),
 }, (table) => [
   index("idx_treatment_plans_booking_id").on(table.bookingId),
   index("idx_treatment_plans_schedule_time").on(table.scheduleTime),
@@ -102,6 +112,8 @@ export const inventory = pgTable("inventory", {
   unit: text("unit").notNull(),
   minStockLevel: decimal("min_stock_level", { precision: 10, scale: 2 }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: text("deleted_by"),
 });
 
 export const materialUsages = pgTable("material_usages", {
@@ -150,6 +162,8 @@ export const services = pgTable("services", {
   type: serviceTypeEnum("type").notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: text("deleted_by"),
 });
 
 export const packageServices = pgTable("package_services", {
