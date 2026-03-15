@@ -789,8 +789,7 @@ export class DatabaseStorage implements IStorage {
           eq(bookings.status, "CHECKED_IN"),
           eq(bookings.status, "EXTENDED"),
           eq(bookings.status, "PENDING"),
-          eq(bookings.status, "NO_SHOW"),
-          eq(bookings.status, "DUE_OUT")
+          eq(bookings.status, "NO_SHOW")
         )
       )
     );
@@ -815,8 +814,7 @@ export class DatabaseStorage implements IStorage {
           isNull(bookings.deletedAt),
           or(
             eq(bookings.status, "CHECKED_IN"),
-            eq(bookings.status, "EXTENDED"),
-            eq(bookings.status, "DUE_OUT")
+            eq(bookings.status, "EXTENDED")
           )
         )
       );
@@ -828,7 +826,6 @@ export class DatabaseStorage implements IStorage {
         or(
           eq(bookings.status, "CHECKED_IN"),
           eq(bookings.status, "EXTENDED"),
-          eq(bookings.status, "DUE_OUT"),
           and(eq(bookings.status, "CHECKED_OUT"), gte(bookings.checkOut, thirtyDaysAgo))
         )
       )
