@@ -33,6 +33,7 @@ import {
 const inventoryFormSchema = z.object({
   itemName: z.string().min(1, "Барааны нэр оруулна уу"),
   unit: z.string().min(1, "Хэмжих нэгж оруулна уу"),
+  unitPrice: z.string().optional(),
   stockQuantity: z.string().min(1, "Анхны нөөц оруулна уу"),
   minStockLevel: z.string().min(1, "Доод нөөц оруулна уу"),
 });
@@ -104,7 +105,7 @@ export default function InventoryPage() {
 
   const form = useForm<InventoryFormValues>({
     resolver: zodResolver(inventoryFormSchema),
-    defaultValues: { itemName: "", unit: "", stockQuantity: "", minStockLevel: "" },
+    defaultValues: { itemName: "", unit: "", unitPrice: "", stockQuantity: "", minStockLevel: "" },
   });
 
   const purchaseForm = useForm<PurchaseFormValues>({
@@ -114,7 +115,7 @@ export default function InventoryPage() {
 
   const openCreate = () => {
     setEditingItem(null);
-    form.reset({ itemName: "", unit: "", stockQuantity: "", minStockLevel: "" });
+    form.reset({ itemName: "", unit: "", unitPrice: "", stockQuantity: "", minStockLevel: "" });
     setDialogOpen(true);
   };
 
@@ -123,6 +124,7 @@ export default function InventoryPage() {
     form.reset({
       itemName: item.itemName,
       unit: item.unit,
+      unitPrice: item.unitPrice ?? "",
       stockQuantity: item.stockQuantity,
       minStockLevel: item.minStockLevel,
     });
@@ -250,6 +252,7 @@ export default function InventoryPage() {
                 <TableHead className="w-10"></TableHead>
                 <TableHead>Барааны нэр</TableHead>
                 <TableHead>Нэгж</TableHead>
+                <TableHead className="text-right">Нэгжийн үнэ</TableHead>
                 <TableHead className="text-right">Нөөц</TableHead>
                 <TableHead className="text-right">Доод нөөц</TableHead>
                 <TableHead>Төлөв</TableHead>
@@ -277,6 +280,9 @@ export default function InventoryPage() {
                         {item.itemName}
                       </TableCell>
                       <TableCell data-testid={`text-item-unit-${item.id}`}>{item.unit}</TableCell>
+                      <TableCell className="text-right" data-testid={`text-item-unit-price-${item.id}`}>
+                        {item.unitPrice ? `${Number(item.unitPrice).toLocaleString()}₮` : "—"}
+                      </TableCell>
                       <TableCell className="text-right font-medium" data-testid={`text-item-stock-${item.id}`}>
                         {Number(item.stockQuantity).toLocaleString()}
                       </TableCell>
@@ -314,7 +320,7 @@ export default function InventoryPage() {
                     </TableRow>
                     {isExpanded && (
                       <TableRow key={`${item.id}-expand`}>
-                        <TableCell colSpan={7} className="bg-muted/30 p-4">
+                        <TableCell colSpan={8} className="bg-muted/30 p-4">
                           <h4 className="text-sm font-medium mb-2">Нийлүүлэлтийн түүх</h4>
                           <PurchaseHistory itemId={item.id} />
                         </TableCell>
@@ -361,6 +367,19 @@ export default function InventoryPage() {
                     <FormLabel>Хэмжих нэгж</FormLabel>
                     <FormControl>
                       <Input placeholder="Жишээ: литр, ширхэг, кг" {...field} data-testid="input-item-unit" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="unitPrice"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Нэгжийн үнэ (₮) <span className="text-muted-foreground font-normal text-xs">— заавал биш</span></FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" min="0" placeholder="0" {...field} data-testid="input-item-unit-price" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

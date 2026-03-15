@@ -110,6 +110,7 @@ export const inventory = pgTable("inventory", {
   itemName: text("item_name").notNull().unique(),
   stockQuantity: decimal("stock_quantity", { precision: 10, scale: 2 }).notNull(),
   unit: text("unit").notNull(),
+  unitPrice: decimal("unit_price", { precision: 12, scale: 2 }),
   minStockLevel: decimal("min_stock_level", { precision: 10, scale: 2 }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   deletedAt: timestamp("deleted_at"),
