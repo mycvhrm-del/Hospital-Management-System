@@ -45,10 +45,12 @@ export async function runNoShowJob() {
     for (const booking of candidates) {
       await storage.updateBookingStatus(booking.id, "NO_SHOW");
       await storage.createAuditLog({
-        userId: "system",
-        action: "NO_SHOW",
-        description: `Захиалга #${booking.id.slice(-6)} — зочин checkIn өдөр (${new Date(booking.checkIn).toLocaleDateString("mn-MN")}) ирсэнгүй`,
-        targetTable: "bookings",
+        operation: "UPDATE",
+        entity: "bookings",
+        entityId: booking.id,
+        beforeJson: { status: booking.status },
+        afterJson: { status: "NO_SHOW" },
+        source: "job",
       });
     }
     logJob(`${candidates.length} захиалга NO_SHOW болов`);
@@ -88,10 +90,12 @@ export async function registerRoutes(
     if (!category) return res.status(404).json({ message: "Category not found" });
     if (oldCategory && parsed.data.basePrice && oldCategory.basePrice !== parsed.data.basePrice) {
       await storage.createAuditLog({
-        userId: "system",
-        action: "PRICE_CHANGE",
-        description: `Өрөөний ангилал "${category.name}" үнэ ${oldCategory.basePrice}₮ → ${category.basePrice}₮`,
-        targetTable: "room_categories",
+        operation: "UPDATE",
+        entity: "room_categories",
+        entityId: category.id,
+        beforeJson: { basePrice: oldCategory.basePrice },
+        afterJson: { basePrice: category.basePrice },
+        source: "api",
       });
     }
     res.json(category);
@@ -659,10 +663,12 @@ export async function registerRoutes(
     if (!service) return res.status(404).json({ message: "Service not found" });
     if (oldService && parsed.data.price && oldService.price !== parsed.data.price) {
       await storage.createAuditLog({
-        userId: "system",
-        action: "PRICE_CHANGE",
-        description: `Эмчилгээ "${service.name}" үнэ ${oldService.price}₮ → ${service.price}₮`,
-        targetTable: "services",
+        operation: "UPDATE",
+        entity: "services",
+        entityId: service.id,
+        beforeJson: { price: oldService.price },
+        afterJson: { price: service.price },
+        source: "api",
       });
     }
     res.json(service);
@@ -878,10 +884,11 @@ export async function registerRoutes(
     if (!txn) return res.status(404).json({ message: "Transaction not found" });
 
     await storage.createAuditLog({
-      userId: "system",
-      action: "PAYMENT_DELETE",
-      description: `Төлбөр устгасан: ${Number(txn.amount).toLocaleString()}₮ (${txn.type}, ${txn.paymentMethod})`,
-      targetTable: "transactions",
+      operation: "DELETE",
+      entity: "transactions",
+      entityId: txn.id,
+      beforeJson: { amount: txn.amount, type: txn.type, paymentMethod: txn.paymentMethod, bookingId: txn.bookingId },
+      source: "api",
     });
 
     const success = await storage.deleteTransaction(req.params.id);
@@ -1157,10 +1164,12 @@ export async function registerRoutes(
       await storage.updateRoom(booking.roomId, { status: "OCCUPIED" });
     }
     await storage.createAuditLog({
-      userId: "receptionist",
-      action: "EXTEND_BOOKING",
-      description: `Захиалга #${id.slice(-6)} — checkout ${newDate.toLocaleDateString("mn-MN")} болтол сунгагдлаа`,
-      targetTable: "bookings",
+      operation: "UPDATE",
+      entity: "bookings",
+      entityId: id,
+      beforeJson: { checkOut: booking.checkOut, status: booking.status },
+      afterJson: { checkOut: newDate, status: "EXTENDED" },
+      source: "api",
     });
     const refreshed = await storage.getBooking(id);
     res.json(refreshed);

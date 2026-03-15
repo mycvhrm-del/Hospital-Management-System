@@ -185,12 +185,22 @@ export const bookingServices = pgTable("booking_services", {
 
 export const auditLogs = pgTable("audit_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: text("user_id").notNull(),
-  action: text("action").notNull(),
-  description: text("description").notNull(),
-  targetTable: text("target_table").notNull(),
-  timestamp: timestamp("timestamp").defaultNow().notNull(),
-});
+  actorId: text("actor_id"),
+  actorType: text("actor_type").notNull().default("system"),
+  operation: text("operation").notNull(),
+  entity: text("entity").notNull(),
+  entityId: text("entity_id"),
+  beforeJson: json("before_json"),
+  afterJson: json("after_json"),
+  requestId: text("request_id"),
+  ip: text("ip"),
+  userAgent: text("user_agent"),
+  source: text("source").notNull().default("api"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_audit_logs_entity").on(table.entity, table.entityId),
+  index("idx_audit_logs_created_at").on(table.createdAt),
+]);
 
 export const settings = pgTable("settings", {
   key: varchar("key").primaryKey(),
@@ -212,7 +222,7 @@ export const insertTransactionSchema = createInsertSchema(transactions).omit({ i
 export const insertServiceSchema = createInsertSchema(services).omit({ id: true, createdAt: true });
 export const insertPackageServiceSchema = createInsertSchema(packageServices).omit({ id: true });
 export const insertBookingServiceSchema = createInsertSchema(bookingServices).omit({ id: true });
-export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, timestamp: true });
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
 export const insertServiceMaterialSchema = createInsertSchema(serviceMaterials).omit({ id: true });
 export const insertInventoryPurchaseSchema = createInsertSchema(inventoryPurchases).omit({ id: true, createdAt: true });
 
