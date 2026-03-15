@@ -105,16 +105,6 @@ export default function BookingsPage() {
   const [page, setPage] = useState(1);
   const BOOKING_LIMIT = 50;
 
-  const { data: activeStays = [] } = useQuery<Booking[]>({
-    queryKey: ["/api/bookings", "active-stays"],
-    queryFn: async () => {
-      const res = await fetch("/api/bookings/active-stays");
-      if (!res.ok) throw new Error("Failed to fetch active stays");
-      const data = await res.json();
-      return Array.isArray(data) ? data : [];
-    },
-  });
-
   type BookingsPage = { data: Booking[]; total: number; totalPages: number };
   const { data: bookingsResult, isLoading } = useQuery<BookingsPage>({
     queryKey: ["/api/bookings", { page, status: statusFilter, search: searchQuery }],
@@ -508,76 +498,6 @@ export default function BookingsPage() {
         </Button>
       </div>
 
-      {activeStays.length > 0 && (
-        <Card data-testid="card-active-stays">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              Одоогийн зочид ({activeStays.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Зочин</TableHead>
-                  <TableHead>Өрөө</TableHead>
-                  <TableHead>Орсон</TableHead>
-                  <TableHead>Гарах</TableHead>
-                  <TableHead>Төлөв</TableHead>
-                  <TableHead className="text-right">Үлдэгдэл</TableHead>
-                  <TableHead className="w-40"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {activeStays.map((booking) => {
-                  const guest = guestMap[booking.guestId];
-                  const room = roomMap[booking.roomId];
-                  const balance = Number(booking.totalAmount) - Number(booking.depositPaid);
-                  return (
-                    <TableRow key={booking.id} data-testid={`row-active-booking-${booking.id}`}>
-                      <TableCell className="font-medium">{guest ? `${guest.lastName} ${guest.firstName}` : "—"}</TableCell>
-                      <TableCell>{room ? room.roomNumber : "—"}</TableCell>
-                      <TableCell>{new Date(booking.checkIn).toLocaleDateString("mn-MN")}</TableCell>
-                      <TableCell>{new Date(booking.checkOut).toLocaleDateString("mn-MN")}</TableCell>
-                      <TableCell>
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[booking.status] || ""}`}>
-                          {statusLabels[booking.status] || booking.status}
-                        </span>
-                      </TableCell>
-                      <TableCell className={`text-right ${balance > 0 ? "text-destructive font-medium" : ""}`}>
-                        {balance.toLocaleString()}₮
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-end gap-1">
-                          {canPay(booking.status) && balance > 0 && (
-                            <Button size="icon" variant="ghost" onClick={() => openPayment(booking)} data-testid={`button-pay-active-${booking.id}`} title="Төлбөр">
-                              <Banknote className="h-4 w-4" />
-                            </Button>
-                          )}
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="text-purple-600 hover:text-purple-700"
-                            onClick={() => { setExtendBooking(booking); setExtendDate(new Date(booking.checkOut).toISOString().split("T")[0]); }}
-                            data-testid={`button-extend-active-${booking.id}`}
-                            title="Хугацаа сунгах"
-                          >
-                            <CalendarClock className="h-4 w-4" />
-                          </Button>
-                          <Button size="icon" variant="ghost" onClick={() => openCheckout(booking)} data-testid={`button-checkout-active-${booking.id}`} title="Check-out">
-                            <LogOut className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-sm">

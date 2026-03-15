@@ -506,7 +506,6 @@ function RoomSection() {
                 <TableHead>Дугаар</TableHead>
                 <TableHead>Давхар</TableHead>
                 <TableHead>Ангилал</TableHead>
-                <TableHead>Төлөв</TableHead>
                 <TableHead className="w-24 text-right">Үйлдэл</TableHead>
               </TableRow>
             </TableHeader>
@@ -521,11 +520,6 @@ function RoomSection() {
                   </TableCell>
                   <TableCell data-testid={`text-room-category-${room.id}`}>
                     {categoryMap[room.categoryId]?.name || "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={statusVariants[room.status]} data-testid={`badge-room-status-${room.id}`}>
-                      {statusLabels[room.status]}
-                    </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">

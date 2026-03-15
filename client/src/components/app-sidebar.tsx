@@ -38,8 +38,8 @@ const navGroups: NavGroup[] = [
     label: "Захиалга & Зочид",
     icon: CalendarDays,
     items: [
-      { title: "Захиалга", url: "/bookings", icon: CalendarDays },
       { title: "Зочид", url: "/guests", icon: Users },
+      { title: "Захиалга", url: "/bookings", icon: CalendarDays },
       { title: "Борлуулалт", url: "/sales", icon: ShoppingCart },
       { title: "Төлбөр", url: "/billing", icon: Banknote },
     ],
