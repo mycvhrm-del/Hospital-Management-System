@@ -1,11 +1,11 @@
 export const BOOKING_STATUS_LABELS: Record<string, string> = {
   PENDING: "Хүлээгдэж буй",
   CONFIRMED: "Баталгаажсан",
-  CHECKED_IN: "Бүртгэлтэй",
+  CHECKED_IN: "Байрлаж буй",
   CHECKED_OUT: "Гарсан",
   CANCELLED: "Цуцлагдсан",
   NO_SHOW: "Ирээгүй",
-  EXTENDED: "Сунгасан",
+  EXTENDED: "Байрлаж буй",
 };
 
 export const BOOKING_STATUS_BADGE_COLORS: Record<string, string> = {

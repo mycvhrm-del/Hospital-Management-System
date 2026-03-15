@@ -272,7 +272,7 @@ export default function SalesPage() {
           <SelectContent>
             <SelectItem value="ALL">Бүгд ({salesBookings.length})</SelectItem>
             <SelectItem value="CHECKED_IN">Байрлаж буй ({salesBookings.filter(b => b.status === "CHECKED_IN").length})</SelectItem>
-            <SelectItem value="EXTENDED">Сунгасан ({salesBookings.filter(b => b.status === "EXTENDED").length})</SelectItem>
+            <SelectItem value="EXTENDED">Байрлаж буй (сунгасан) ({salesBookings.filter(b => b.status === "EXTENDED").length})</SelectItem>
             <SelectItem value="CHECKED_OUT">Гарсан ({salesBookings.filter(b => b.status === "CHECKED_OUT").length})</SelectItem>
           </SelectContent>
         </Select>
