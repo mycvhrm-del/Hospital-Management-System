@@ -30,7 +30,7 @@ const navGroups: NavGroup[] = [
     icon: LayoutDashboard,
     items: [
       { title: "Dashboard", url: "/", icon: LayoutDashboard },
-      { title: "Өрөөний самбар", url: "/room-grid", icon: Grid3X3 },
+      { title: "Өрөөнүүд", url: "/room-grid", icon: Grid3X3 },
       { title: "Долоо хоногийн хуваарь", url: "/timeline", icon: CalendarRange },
     ],
   },
