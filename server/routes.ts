@@ -137,7 +137,7 @@ export async function registerRoutes(
     const floor = await storage.getFloor(req.params.id);
     if (!floor) return res.status(404).json({ message: "Floor not found" });
     const allRooms = await storage.getRooms();
-    const roomsOnFloor = allRooms.filter(r => r.floor === floor.number);
+    const roomsOnFloor = allRooms.filter(r => r.floorId === floor.id);
     if (roomsOnFloor.length > 0) {
       return res.status(409).json({ message: `Энэ давхарт ${roomsOnFloor.length} өрөө бүртгэлтэй байгаа тул устгах боломжгүй` });
     }
@@ -949,7 +949,7 @@ export async function registerRoutes(
       return {
         id: room.id,
         roomNumber: room.roomNumber,
-        floor: room.floor,
+        floorId: room.floorId,
         status: room.status,
         category: cat ? { id: cat.id, name: cat.name, basePrice: cat.basePrice, capacity: cat.capacity } : null,
         bookings: enriched,

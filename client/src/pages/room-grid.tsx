@@ -598,9 +598,9 @@ export default function RoomGridPage() {
     return acc;
   }, {});
 
-  const floors = Array.from(
-    new Set([...dbFloors.map(f => f.number), ...roomGrid.map((r) => r.floor)])
-  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const floors = dbFloors
+    .map(f => f.number)
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
   const statusFilteredRooms = selectedStatus === "all" ? roomGrid : roomGrid.filter((r) => {
     switch (selectedStatus) {
@@ -619,7 +619,10 @@ export default function RoomGridPage() {
 
   const filteredRooms = selectedFloor === "all"
     ? statusFilteredRooms
-    : statusFilteredRooms.filter((r) => String(r.floor) === selectedFloor);
+    : statusFilteredRooms.filter((r) => {
+        const f = dbFloors.find(fl => fl.id === r.floorId);
+        return f?.number === selectedFloor;
+      });
 
   const sortedRooms = [...filteredRooms].sort((a, b) => a.roomNumber.localeCompare(b.roomNumber));
 

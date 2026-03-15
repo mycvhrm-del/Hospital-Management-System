@@ -63,7 +63,7 @@ const categoryFormSchema = z.object({
 
 const roomFormSchema = z.object({
   roomNumber: z.string().min(1, "Өрөөний дугаар оруулна уу"),
-  floor: z.string().min(1, "Давхар сонгоно уу"),
+  floorId: z.string().min(1, "Давхар сонгоно уу"),
   categoryId: z.string().min(1, "Ангилал сонгоно уу"),
 });
 
@@ -381,13 +381,13 @@ function RoomSection() {
   }, {});
 
   const floorMap = floorList.reduce<Record<string, Floor>>((acc, f) => {
-    acc[f.number] = f;
+    acc[f.id] = f;
     return acc;
   }, {});
 
   const form = useForm<RoomFormValues>({
     resolver: zodResolver(roomFormSchema),
-    defaultValues: { roomNumber: "", floor: "", categoryId: "" },
+    defaultValues: { roomNumber: "", floorId: "", categoryId: "" },
   });
 
   const createMutation = useMutation({
@@ -432,7 +432,7 @@ function RoomSection() {
 
   const openCreate = () => {
     setEditingRoom(null);
-    form.reset({ roomNumber: "", floor: "", categoryId: "" });
+    form.reset({ roomNumber: "", floorId: "", categoryId: "" });
     setDialogOpen(true);
   };
 
@@ -440,7 +440,7 @@ function RoomSection() {
     setEditingRoom(room);
     form.reset({
       roomNumber: room.roomNumber,
-      floor: room.floor,
+      floorId: room.floorId ?? "",
       categoryId: room.categoryId,
     });
     setDialogOpen(true);
@@ -516,7 +516,7 @@ function RoomSection() {
                     {room.roomNumber}
                   </TableCell>
                   <TableCell data-testid={`text-room-floor-${room.id}`}>
-                    {floorMap[room.floor]?.name || `${room.floor}-р давхар`}
+                    {floorMap[room.floorId]?.name || "—"}
                   </TableCell>
                   <TableCell data-testid={`text-room-category-${room.id}`}>
                     {categoryMap[room.categoryId]?.name || "—"}
@@ -576,7 +576,7 @@ function RoomSection() {
                 />
                 <FormField
                   control={form.control}
-                  name="floor"
+                  name="floorId"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Давхар</FormLabel>
@@ -588,7 +588,7 @@ function RoomSection() {
                         </FormControl>
                         <SelectContent>
                           {floorList.map((f) => (
-                            <SelectItem key={f.id} value={f.number}>
+                            <SelectItem key={f.id} value={f.id}>
                               {f.name}
                             </SelectItem>
                           ))}

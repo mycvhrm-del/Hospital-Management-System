@@ -86,7 +86,7 @@ function RoomCard({
                 Өрөө {room.roomNumber}
               </p>
               <p className="text-xs text-muted-foreground">
-                {floorMap[room.floor] || `${room.floor}-р давхар`}
+                {floorMap[room.floorId] || "—"}
               </p>
             </div>
           </div>
@@ -174,7 +174,7 @@ export default function HousekeepingPage() {
     queryKey: ["/api/floors"],
   });
 
-  const floorMap = Object.fromEntries((floors || []).map(f => [f.number, f.name]));
+  const floorMap = Object.fromEntries((floors || []).map(f => [f.id, f.name]));
 
   const allRooms = rooms || [];
 

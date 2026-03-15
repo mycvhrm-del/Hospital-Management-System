@@ -32,7 +32,7 @@ export const floors = pgTable("floors", {
 export const rooms = pgTable("rooms", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   roomNumber: text("room_number").notNull().unique(),
-  floor: text("floor").notNull().default("1"),
+  floorId: varchar("floor_id").notNull().references(() => floors.id, { onDelete: "restrict" }),
   categoryId: varchar("category_id").notNull().references(() => roomCategories.id, { onDelete: "cascade" }),
   status: roomStatusEnum("status").default("AVAILABLE").notNull(),
 });
@@ -55,8 +55,8 @@ export const guests = pgTable("guests", {
 
 export const bookings = pgTable("bookings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  guestId: varchar("guest_id").notNull(),
-  roomId: varchar("room_id").notNull(),
+  guestId: varchar("guest_id").notNull().references(() => guests.id, { onDelete: "restrict" }),
+  roomId: varchar("room_id").notNull().references(() => rooms.id, { onDelete: "restrict" }),
   checkIn: timestamp("check_in").notNull(),
   checkOut: timestamp("check_out").notNull(),
   status: bookingStatusEnum("status").default("PENDING").notNull(),
@@ -82,10 +82,10 @@ export const staff = pgTable("staff", {
 
 export const treatmentPlans = pgTable("treatment_plans", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  bookingId: varchar("booking_id").notNull(),
-  serviceId: varchar("service_id"),
+  bookingId: varchar("booking_id").notNull().references(() => bookings.id, { onDelete: "restrict" }),
+  serviceId: varchar("service_id").references((): any => services.id, { onDelete: "set null" }),
   serviceName: text("service_name").notNull(),
-  staffId: varchar("staff_id"),
+  staffId: varchar("staff_id").references(() => staff.id, { onDelete: "set null" }),
   scheduleTime: timestamp("schedule_time").notNull(),
   status: text("status").notNull(),
   notes: text("notes"),
@@ -106,22 +106,22 @@ export const inventory = pgTable("inventory", {
 
 export const materialUsages = pgTable("material_usages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  treatmentId: varchar("treatment_id").notNull(),
-  inventoryId: varchar("inventory_id").notNull(),
+  treatmentId: varchar("treatment_id").notNull().references(() => treatmentPlans.id, { onDelete: "restrict" }),
+  inventoryId: varchar("inventory_id").notNull().references(() => inventory.id, { onDelete: "restrict" }),
   quantityUsed: decimal("quantity_used", { precision: 10, scale: 2 }).notNull(),
   usageDate: timestamp("usage_date").defaultNow().notNull(),
 });
 
 export const serviceMaterials = pgTable("service_materials", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  serviceId: varchar("service_id").notNull(),
-  inventoryId: varchar("inventory_id").notNull(),
+  serviceId: varchar("service_id").notNull().references((): any => services.id, { onDelete: "cascade" }),
+  inventoryId: varchar("inventory_id").notNull().references(() => inventory.id, { onDelete: "restrict" }),
   quantityNeeded: decimal("quantity_needed", { precision: 10, scale: 2 }).notNull(),
 });
 
 export const inventoryPurchases = pgTable("inventory_purchases", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  inventoryId: varchar("inventory_id").notNull(),
+  inventoryId: varchar("inventory_id").notNull().references(() => inventory.id, { onDelete: "restrict" }),
   quantity: decimal("quantity", { precision: 10, scale: 2 }).notNull(),
   purchaseDate: timestamp("purchase_date").notNull(),
   note: text("note"),
@@ -130,7 +130,7 @@ export const inventoryPurchases = pgTable("inventory_purchases", {
 
 export const transactions = pgTable("transactions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  bookingId: varchar("booking_id").notNull(),
+  bookingId: varchar("booking_id").notNull().references(() => bookings.id, { onDelete: "restrict" }),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   type: text("type").notNull(),
   paymentMethod: text("payment_method").notNull(),
@@ -154,14 +154,14 @@ export const services = pgTable("services", {
 
 export const packageServices = pgTable("package_services", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  packageId: varchar("package_id").notNull(),
-  serviceId: varchar("service_id").notNull(),
+  packageId: varchar("package_id").notNull().references((): any => services.id, { onDelete: "cascade" }),
+  serviceId: varchar("service_id").notNull().references((): any => services.id, { onDelete: "restrict" }),
 });
 
 export const bookingServices = pgTable("booking_services", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  bookingId: varchar("booking_id").notNull(),
-  serviceId: varchar("service_id").notNull(),
+  bookingId: varchar("booking_id").notNull().references(() => bookings.id, { onDelete: "restrict" }),
+  serviceId: varchar("service_id").notNull().references((): any => services.id, { onDelete: "restrict" }),
   quantity: integer("quantity").default(1).notNull(),
   unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
   totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
