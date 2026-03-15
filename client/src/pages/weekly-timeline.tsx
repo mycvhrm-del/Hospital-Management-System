@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ChevronLeft, ChevronRight, CalendarDays, User, Phone, Crown, Users, Clock, LogIn, LogOut } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays, User, Phone, Crown, Users, Clock, LogIn, LogOut, LayoutGrid } from "lucide-react";
 import { getRoomStatusConfig } from "@/lib/room-status";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -107,9 +107,22 @@ interface SearchGuest {
   idNumber: string;
 }
 
+function getMonthStart(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function getMonthDays(monthStart: Date): Date[] {
+  const year = monthStart.getFullYear();
+  const month = monthStart.getMonth();
+  const count = new Date(year, month + 1, 0).getDate();
+  return Array.from({ length: count }, (_, i) => new Date(year, month, i + 1));
+}
+
 export default function WeeklyTimelinePage() {
   const { toast } = useToast();
+  const [viewMode, setViewMode] = useState<"week" | "month">("week");
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
+  const [monthStart, setMonthStart] = useState(() => getMonthStart(new Date()));
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [quickBookOpen, setQuickBookOpen] = useState(false);
   const [quickBookRoom, setQuickBookRoom] = useState<TimelineRoom | null>(null);
@@ -118,11 +131,23 @@ export default function WeeklyTimelinePage() {
   const [selectedGuest, setSelectedGuest] = useState<SearchGuest | null>(null);
   const [searching, setSearching] = useState(false);
 
-  const days = useMemo(() => getDays(weekStart), [weekStart]);
-  const startParam = formatDate(weekStart);
+  const isMonthView = viewMode === "month";
+
+  const days = useMemo(() => {
+    if (isMonthView) return getMonthDays(monthStart);
+    return getDays(weekStart);
+  }, [isMonthView, weekStart, monthStart]);
+
+  const startParam = isMonthView ? formatDate(monthStart) : formatDate(weekStart);
+  const endParam = useMemo(() => {
+    if (!isMonthView) return null;
+    const year = monthStart.getFullYear();
+    const month = monthStart.getMonth();
+    return formatDate(new Date(year, month + 1, 1));
+  }, [isMonthView, monthStart]);
 
   const { data: timeline, isLoading } = useQuery<TimelineData>({
-    queryKey: ["/api/weekly-timeline", `?start=${startParam}`],
+    queryKey: ["/api/weekly-timeline", `?start=${startParam}${endParam ? `&end=${endParam}` : ""}`],
   });
 
   const { data: categories = [] } = useQuery<RoomCategory[]>({
@@ -163,7 +188,21 @@ export default function WeeklyTimelinePage() {
     setWeekStart(d);
   };
 
-  const goToday = () => setWeekStart(getWeekStart(new Date()));
+  const prevMonth = () => {
+    setMonthStart(new Date(monthStart.getFullYear(), monthStart.getMonth() - 1, 1));
+  };
+
+  const nextMonth = () => {
+    setMonthStart(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1));
+  };
+
+  const goToday = () => {
+    setWeekStart(getWeekStart(new Date()));
+    setMonthStart(getMonthStart(new Date()));
+  };
+
+  const handlePrev = () => isMonthView ? prevMonth() : prevWeek();
+  const handleNext = () => isMonthView ? nextMonth() : nextWeek();
 
   const openQuickBook = (room: TimelineRoom, date: Date) => {
     setQuickBookRoom(room);
@@ -214,18 +253,45 @@ export default function WeeklyTimelinePage() {
   const today = formatDate(new Date());
   const isToday = (d: Date) => formatDate(d) === today;
 
+  const titleText = isMonthView
+    ? `${MONTHS_MN[monthStart.getMonth()]} ${monthStart.getFullYear()}`
+    : "Долоо хоногийн хуваарь";
+  const subtitleText = isMonthView
+    ? `${monthStart.getFullYear()} оны ${monthStart.getMonth() + 1}-р сар (${days.length} хоног)`
+    : `${MONTHS_MN[weekStart.getMonth()]} ${weekStart.getDate()} - ${MONTHS_MN[days[6].getMonth()]} ${days[6].getDate()}, ${days[6].getFullYear()}`;
+
   return (
     <div className="p-6 space-y-4" data-testid="page-weekly-timeline">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-timeline-title">
-            Долоо хоногийн хуваарь
+            {titleText}
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {MONTHS_MN[weekStart.getMonth()]} {weekStart.getDate()} - {MONTHS_MN[days[6].getMonth()]} {days[6].getDate()}, {days[6].getFullYear()}
-          </p>
+          <p className="text-muted-foreground text-sm mt-1">{subtitleText}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center border rounded-md overflow-hidden">
+            <Button
+              variant={viewMode === "week" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-none h-8 px-3 gap-1.5"
+              onClick={() => setViewMode("week")}
+              data-testid="button-view-week"
+            >
+              <CalendarDays className="h-3.5 w-3.5" />
+              7 хоног
+            </Button>
+            <Button
+              variant={viewMode === "month" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-none h-8 px-3 gap-1.5 border-l"
+              onClick={() => setViewMode("month")}
+              data-testid="button-view-month"
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              Сар
+            </Button>
+          </div>
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
             <SelectTrigger className="w-[160px]" data-testid="select-category-filter">
               <SelectValue placeholder="Бүх төрөл" />
@@ -238,13 +304,13 @@ export default function WeeklyTimelinePage() {
             </SelectContent>
           </Select>
           <div className="flex items-center border rounded-md">
-            <Button variant="ghost" size="icon" onClick={prevWeek} data-testid="button-prev-week">
+            <Button variant="ghost" size="icon" onClick={handlePrev} data-testid="button-prev-period">
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="sm" onClick={goToday} data-testid="button-today">
               Өнөөдөр
             </Button>
-            <Button variant="ghost" size="icon" onClick={nextWeek} data-testid="button-next-week">
+            <Button variant="ghost" size="icon" onClick={handleNext} data-testid="button-next-period">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
@@ -268,14 +334,25 @@ export default function WeeklyTimelinePage() {
                 {days.map(day => (
                   <th
                     key={formatDate(day)}
-                    className={`border-b px-1 py-2 text-center text-xs font-medium min-w-[110px] ${
-                      isToday(day) ? "bg-primary/10 text-primary" : "text-muted-foreground"
-                    }`}
+                    className={`border-b py-1 text-center text-xs font-medium ${
+                      isMonthView ? "px-0 min-w-[34px] w-[34px]" : "px-1 min-w-[110px]"
+                    } ${isToday(day) ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
                   >
-                    <div>{DAYS_MN[day.getDay()]}</div>
-                    <div className={`text-sm font-semibold ${isToday(day) ? "text-primary" : "text-foreground"}`}>
-                      {day.getMonth() + 1}/{day.getDate()}
-                    </div>
+                    {isMonthView ? (
+                      <>
+                        <div className="text-[9px] leading-none opacity-60">{DAYS_MN[day.getDay()]}</div>
+                        <div className={`text-xs font-bold leading-tight ${isToday(day) ? "text-primary" : "text-foreground"}`}>
+                          {day.getDate()}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>{DAYS_MN[day.getDay()]}</div>
+                        <div className={`text-sm font-semibold ${isToday(day) ? "text-primary" : "text-foreground"}`}>
+                          {day.getMonth() + 1}/{day.getDate()}
+                        </div>
+                      </>
+                    )}
                   </th>
                 ))}
               </tr>
@@ -287,6 +364,7 @@ export default function WeeklyTimelinePage() {
                   room={room}
                   days={days}
                   today={today}
+                  isMonthView={isMonthView}
                   onEmptyCellClick={(date) => openQuickBook(room, date)}
                 />
               ))}
@@ -475,11 +553,13 @@ function TimelineRow({
   room,
   days,
   today,
+  isMonthView,
   onEmptyCellClick,
 }: {
   room: TimelineRoom;
   days: Date[];
   today: string;
+  isMonthView?: boolean;
   onEmptyCellClick: (date: Date) => void;
 }) {
   const occupancy = useMemo(() => {
@@ -526,17 +606,20 @@ function TimelineRow({
         });
 
         const isTodayCell = dateStr === today;
+        const cellPy = isMonthView ? "py-0.5" : "py-1";
+        const cellPx = isMonthView ? "px-0" : "px-1";
+        const barH = isMonthView ? "h-5" : "h-8";
 
         if (dayBookings.length === 0) {
           if (room.status === "OUT_OF_ORDER") {
             return (
               <td
                 key={dateStr}
-                className={`border-b px-1 py-1 ${isTodayCell ? "bg-red-50/80 dark:bg-red-900/10" : "bg-red-50/40 dark:bg-red-900/10"}`}
+                className={`border-b ${cellPx} ${cellPy} ${isTodayCell ? "bg-red-50/80 dark:bg-red-900/10" : "bg-red-50/40 dark:bg-red-900/10"}`}
                 data-testid={`cell-ooo-${room.roomNumber}-${dateStr}`}
               >
-                <div className="h-8 rounded border border-red-200 dark:border-red-800 flex items-center justify-center bg-red-100/50 dark:bg-red-900/20">
-                  <span className="text-[9px] text-red-500 dark:text-red-400 font-medium">OOO</span>
+                <div className={`${barH} rounded border border-red-200 dark:border-red-800 flex items-center justify-center bg-red-100/50 dark:bg-red-900/20`}>
+                  {!isMonthView && <span className="text-[9px] text-red-500 dark:text-red-400 font-medium">OOO</span>}
                 </div>
               </td>
             );
@@ -545,11 +628,11 @@ function TimelineRow({
             return (
               <td
                 key={dateStr}
-                className={`border-b px-1 py-1 ${isTodayCell ? "bg-zinc-100/80 dark:bg-zinc-800/20" : "bg-zinc-50/40 dark:bg-zinc-900/10"}`}
+                className={`border-b ${cellPx} ${cellPy} ${isTodayCell ? "bg-zinc-100/80 dark:bg-zinc-800/20" : "bg-zinc-50/40 dark:bg-zinc-900/10"}`}
                 data-testid={`cell-oos-${room.roomNumber}-${dateStr}`}
               >
-                <div className="h-8 rounded border border-zinc-200 dark:border-zinc-700 flex items-center justify-center bg-zinc-100/50 dark:bg-zinc-800/20">
-                  <span className="text-[9px] text-zinc-400 font-medium">OOS</span>
+                <div className={`${barH} rounded border border-zinc-200 dark:border-zinc-700 flex items-center justify-center bg-zinc-100/50 dark:bg-zinc-800/20`}>
+                  {!isMonthView && <span className="text-[9px] text-zinc-400 font-medium">OOS</span>}
                 </div>
               </td>
             );
@@ -558,25 +641,12 @@ function TimelineRow({
             return (
               <td
                 key={dateStr}
-                className={`border-b px-1 py-1 cursor-pointer ${isTodayCell ? "bg-primary/5" : rs.rowBg}`}
+                className={`border-b ${cellPx} ${cellPy} cursor-pointer ${isTodayCell ? "bg-primary/5" : rs.rowBg}`}
                 onClick={() => onEmptyCellClick(day)}
                 data-testid={`cell-empty-${room.roomNumber}-${dateStr}`}
               >
-                <div className="h-8 rounded border border-dashed border-muted-foreground/20 flex items-center justify-center">
-                  <span className="text-[10px] text-muted-foreground/40">+</span>
-                </div>
-              </td>
-            );
-          }
-          if (room.status === "DUE_OUT" && isTodayCell) {
-            return (
-              <td
-                key={dateStr}
-                className="border-b px-1 py-1 bg-orange-50/60 dark:bg-orange-900/10"
-                data-testid={`cell-dueout-${room.roomNumber}-${dateStr}`}
-              >
-                <div className="h-8 rounded border border-orange-200 dark:border-orange-800 flex items-center justify-center bg-orange-100/40 dark:bg-orange-900/20">
-                  <span className="text-[9px] text-orange-500 dark:text-orange-400 font-medium">OUT</span>
+                <div className={`${barH} rounded border border-dashed border-muted-foreground/20 flex items-center justify-center`}>
+                  {!isMonthView && <span className="text-[10px] text-muted-foreground/40">+</span>}
                 </div>
               </td>
             );
@@ -584,12 +654,12 @@ function TimelineRow({
           return (
             <td
               key={dateStr}
-              className={`border-b px-1 py-1 cursor-pointer ${isTodayCell ? "bg-primary/5" : ""}`}
+              className={`border-b ${cellPx} ${cellPy} cursor-pointer ${isTodayCell ? "bg-primary/5" : ""}`}
               onClick={() => onEmptyCellClick(day)}
               data-testid={`cell-empty-${room.roomNumber}-${dateStr}`}
             >
-              <div className="h-8 rounded border border-dashed border-muted-foreground/20 flex items-center justify-center">
-                <span className="text-[10px] text-muted-foreground/40">+</span>
+              <div className={`${barH} rounded border border-dashed border-muted-foreground/20 flex items-center justify-center`}>
+                {!isMonthView && <span className="text-[10px] text-muted-foreground/40">+</span>}
               </div>
             </td>
           );
@@ -598,12 +668,12 @@ function TimelineRow({
         return (
           <td
             key={dateStr}
-            className={`border-b px-0.5 py-1 ${isTodayCell ? "bg-primary/5" : ""}`}
+            className={`border-b px-0 ${cellPy} ${isTodayCell ? "bg-primary/5" : ""}`}
             data-testid={`cell-booked-${room.roomNumber}-${dateStr}`}
           >
-            <div className="space-y-0.5">
+            <div className="space-y-px">
               {dayBookings.map(booking => (
-                <BookingCell key={booking.id} booking={booking} day={day} room={room} />
+                <BookingCell key={booking.id} booking={booking} day={day} room={room} isMonthView={isMonthView} />
               ))}
             </div>
           </td>
@@ -617,10 +687,12 @@ function BookingCell({
   booking,
   day,
   room,
+  isMonthView,
 }: {
   booking: TimelineBooking;
   day: Date;
   room: TimelineRoom;
+  isMonthView?: boolean;
 }) {
   const dayStart = new Date(day);
   dayStart.setHours(0, 0, 0, 0);
@@ -645,17 +717,18 @@ function BookingCell({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`w-full h-8 ${colorClass} ${roundLeft} ${roundRight} text-white text-[11px] font-medium px-1.5 flex items-center gap-1 truncate`}
+          className={`w-full ${isMonthView ? "h-5" : "h-8"} ${colorClass} ${roundLeft} ${roundRight} text-white ${isMonthView ? "text-[9px]" : "text-[11px]"} font-medium ${isMonthView ? "px-0" : "px-1.5"} flex items-center gap-1 truncate`}
           style={{ cursor: "pointer" }}
           data-testid={`booking-bar-${booking.id}-${formatDate(day)}`}
         >
-          {isStart && (
+          {!isMonthView && isStart && (
             <>
               {booking.guest?.isVip && <Crown className="h-3 w-3 shrink-0" />}
               <span className="truncate">{guestName}</span>
             </>
           )}
-          {!isStart && !isEnd && <span className="truncate opacity-70">{guestName}</span>}
+          {!isMonthView && !isStart && !isEnd && <span className="truncate opacity-70">{guestName}</span>}
+          {isMonthView && isStart && booking.guest?.isVip && <Crown className="h-2.5 w-2.5 mx-auto shrink-0" />}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-3" align="start">

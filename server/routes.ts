@@ -932,6 +932,7 @@ export async function registerRoutes(
 
   app.get("/api/weekly-timeline", async (req, res) => {
     const startStr = req.query.start as string;
+    const endStr = req.query.end as string;
     const start = startStr ? new Date(startStr) : (() => {
       const d = new Date();
       d.setHours(0, 0, 0, 0);
@@ -940,7 +941,10 @@ export async function registerRoutes(
     if (isNaN(start.getTime())) {
       return res.status(400).json({ message: "Invalid start date" });
     }
-    const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const end = endStr ? new Date(endStr) : new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+    if (isNaN(end.getTime())) {
+      return res.status(400).json({ message: "Invalid end date" });
+    }
 
     const [allRooms, categories, weekBookings] = await Promise.all([
       storage.getRooms(),
