@@ -44,6 +44,15 @@ export async function runNoShowJob() {
     if (candidates.length === 0) return;
     for (const booking of candidates) {
       await storage.updateBookingStatus(booking.id, "NO_SHOW");
+      // Өрөөний статусыг шинэчлэх: өөр идэвхтэй захиалга байвал PENDING/OCCUPIED, эсвэл AVAILABLE
+      const otherActive = await storage.getActiveBookingForRoom(booking.roomId);
+      if (otherActive && otherActive.id !== booking.id) {
+        await storage.updateRoom(booking.roomId, {
+          status: otherActive.status === "CHECKED_IN" ? "OCCUPIED" : "PENDING",
+        });
+      } else {
+        await storage.updateRoom(booking.roomId, { status: "AVAILABLE" });
+      }
       await storage.createAuditLog({
         operation: "UPDATE",
         entity: "bookings",
@@ -52,6 +61,7 @@ export async function runNoShowJob() {
         afterJson: { status: "NO_SHOW" },
         source: "job",
       });
+      logJob(`Захиалга ${booking.id.slice(0, 8)} → NO_SHOW (өрөө шинэчлэгдсэн)`);
     }
     logJob(`${candidates.length} захиалга NO_SHOW болов`);
   } catch (err) {
@@ -517,6 +527,16 @@ export async function registerRoutes(
       }
     } else if (status === "CONFIRMED") {
       await storage.updateRoom(booking.roomId, { status: "PENDING" });
+    } else if (status === "NO_SHOW") {
+      // PENDING/CONFIRMED → NO_SHOW: өрөө AVAILABLE болно (өөр захиалга байвал PENDING/OCCUPIED)
+      const otherActive = await storage.getActiveBookingForRoom(booking.roomId);
+      if (otherActive && otherActive.id !== booking.id) {
+        await storage.updateRoom(booking.roomId, {
+          status: otherActive.status === "CHECKED_IN" ? "OCCUPIED" : "PENDING",
+        });
+      } else {
+        await storage.updateRoom(booking.roomId, { status: "AVAILABLE" });
+      }
     }
     res.json(booking);
   });
