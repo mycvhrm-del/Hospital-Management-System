@@ -37,7 +37,10 @@ export const rooms = pgTable("rooms", {
   status: roomStatusEnum("status").default("AVAILABLE").notNull(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: text("deleted_by"),
-});
+}, (table) => [
+  index("idx_rooms_status").on(table.status),
+  index("idx_rooms_floor_id").on(table.floorId),
+]);
 
 export const guests = pgTable("guests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -53,6 +56,7 @@ export const guests = pgTable("guests", {
   deletedAt: timestamp("deleted_at"),
   deletedBy: text("deleted_by"),
 }, (table) => [
+  index("idx_guests_phone").on(table.phone),
   index("idx_guests_parent_id").on(table.parentId),
   index("idx_guests_created_at").on(table.createdAt),
 ]);
@@ -76,6 +80,8 @@ export const bookings = pgTable("bookings", {
   index("idx_bookings_check_in").on(table.checkIn),
   index("idx_bookings_check_out").on(table.checkOut),
   index("idx_bookings_status_check_in").on(table.status, table.checkIn),
+  index("idx_bookings_room_status").on(table.roomId, table.status),
+  index("idx_bookings_checkin_checkout").on(table.checkIn, table.checkOut),
 ]);
 
 export const staff = pgTable("staff", {
@@ -125,7 +131,10 @@ export const materialUsages = pgTable("material_usages", {
   unitCost: decimal("unit_cost", { precision: 12, scale: 2 }),
   totalCost: decimal("total_cost", { precision: 12, scale: 2 }),
   usageDate: timestamp("usage_date").defaultNow().notNull(),
-});
+}, (table) => [
+  index("idx_material_usages_treatment_id").on(table.treatmentId),
+  index("idx_material_usages_inventory_id").on(table.inventoryId),
+]);
 
 export const serviceMaterials = pgTable("service_materials", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -143,7 +152,11 @@ export const inventoryPurchases = pgTable("inventory_purchases", {
   purchaseDate: timestamp("purchase_date").notNull(),
   note: text("note"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("idx_inventory_purchases_inventory_id").on(table.inventoryId),
+  index("idx_inventory_purchases_date").on(table.purchaseDate),
+  index("idx_inventory_purchases_fifo").on(table.inventoryId, table.purchaseDate),
+]);
 
 export const transactions = pgTable("transactions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -155,6 +168,8 @@ export const transactions = pgTable("transactions", {
 }, (table) => [
   index("idx_transactions_booking_id").on(table.bookingId),
   index("idx_transactions_created_at").on(table.createdAt),
+  index("idx_transactions_type").on(table.type),
+  index("idx_transactions_type_date").on(table.type, table.createdAt),
 ]);
 
 export const serviceTypeEnum = pgEnum("service_type", ["SERVICE", "PACKAGE"]);
