@@ -31,7 +31,7 @@ const navGroups: NavGroup[] = [
     items: [
       { title: "Dashboard", url: "/", icon: LayoutDashboard },
       { title: "Өрөөнүүд", url: "/room-grid", icon: Grid3X3 },
-      { title: "Долоо хоногийн хуваарь", url: "/timeline", icon: CalendarRange },
+      { title: "Хуваарь", url: "/timeline", icon: CalendarRange },
     ],
   },
   {
