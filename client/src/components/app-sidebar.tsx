@@ -48,7 +48,6 @@ const navGroups: NavGroup[] = [
     label: "Эмнэлэг",
     icon: Stethoscope,
     items: [
-      { title: "Үйлчилгээ & Багц", url: "/services", icon: Stethoscope },
       { title: "Өдрийн хуваарь", url: "/daily-schedule", icon: CalendarClock },
     ],
   },
@@ -63,6 +62,7 @@ const navGroups: NavGroup[] = [
 ];
 
 const systemItems: NavItem[] = [
+  { title: "Үйлчилгээ & Багц", url: "/services", icon: Stethoscope },
   { title: "Тохиргоо", url: "/settings", icon: Settings },
 ];
 
