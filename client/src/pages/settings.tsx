@@ -76,29 +76,6 @@ type CategoryFormValues = z.infer<typeof categoryFormSchema>;
 type RoomFormValues = z.infer<typeof roomFormSchema>;
 type FloorFormValues = z.infer<typeof floorFormSchema>;
 
-const statusLabels: Record<string, string> = {
-  AVAILABLE: "Сул",
-  OCCUPIED: "Дүүрсэн",
-  PENDING: "Хүлээгдэж буй",
-  CLEANING: "Хүлээгдэж буй",
-  CLEANING_IN_PROGRESS: "Цэвэрлэж буй",
-  INSPECTED: "Шалгагдсан",
-  OUT_OF_ORDER: "Засвартай",
-  OUT_OF_SERVICE: "Хаалттай",
-  DUE_OUT: "Гарах өдөр",
-};
-
-const statusVariants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  AVAILABLE: "default",
-  OCCUPIED: "destructive",
-  PENDING: "outline",
-  CLEANING: "secondary",
-  CLEANING_IN_PROGRESS: "secondary",
-  INSPECTED: "secondary",
-  OUT_OF_ORDER: "destructive",
-  OUT_OF_SERVICE: "secondary",
-  DUE_OUT: "outline",
-};
 
 function CategorySection() {
   const { toast } = useToast();

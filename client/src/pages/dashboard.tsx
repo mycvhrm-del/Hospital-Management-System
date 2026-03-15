@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { BedDouble, Layers, CheckCircle, AlertTriangle, DollarSign, CalendarDays } from "lucide-react";
+import { BedDouble, Layers, CheckCircle, AlertTriangle, DollarSign, CalendarDays, LogOut } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import { ROOM_STATUS_CONFIG, type RoomStatus } from "@/lib/room-status";
@@ -49,8 +49,9 @@ export default function Dashboard() {
     { title: "Өнөөдрийн орлого",  value: stats ? `${stats.todayRevenue.toLocaleString()}₮` : "—", icon: DollarSign,   description: "Өнөөдөр хийгдсэн төлбөрүүд" },
     { title: "Сул өрөө",           value: stats?.rooms.available ?? "—",   icon: CheckCircle,  description: "Захиалгад бэлэн" },
     { title: "Дүүрсэн",            value: stats?.rooms.occupied ?? "—",    icon: AlertTriangle, description: "Одоогоор ашиглагдаж буй" },
-    { title: "Идэвхтэй захиалга",  value: stats?.activeBookings ?? "—",    icon: CalendarDays, description: "Бүртгэлтэй зочид" },
-    { title: "Нийт өрөө",          value: stats?.rooms.total ?? "—",       icon: BedDouble,    description: "Бүртгэлтэй өрөөнүүд" },
+    { title: "Өнөөдөр гарах",      value: stats?.rooms.dueOut ?? "—",      icon: LogOut,       description: "Гарах өдөртэй зочид" },
+    { title: "Идэвхтэй захиалга",  value: stats?.activeBookings ?? "—",    icon: CalendarDays, description: "Байрлаж буй зочид" },
+    { title: "Нийт өрөө",          value: stats?.rooms.total ?? "—",       icon: BedDouble,    description: "Нийт өрөөний тоо" },
     { title: "Нийт захиалга",      value: stats?.totalBookings ?? "—",     icon: Layers,       description: "Бүх захиалгууд" },
   ];
 
