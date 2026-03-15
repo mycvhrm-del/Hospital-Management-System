@@ -307,7 +307,9 @@ export async function registerRoutes(
         roomIds = matchingRooms.map(r => r.id);
       }
 
-      const notStatuses = ["CHECKED_IN", "EXTENDED", "DUE_OUT"];
+      const notStatuses = (!status || status === "ALL")
+        ? ["CHECKED_IN", "EXTENDED", "DUE_OUT", "CHECKED_OUT"]
+        : [];
       const result = await storage.getBookingsPaginated(page, limit, status, guestIds, roomIds, notStatuses);
       return res.json(result);
     }

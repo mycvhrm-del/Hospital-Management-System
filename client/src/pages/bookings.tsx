@@ -518,6 +518,7 @@ export default function BookingsPage() {
             <SelectItem value="ALL">Бүгд ({totalCount})</SelectItem>
             <SelectItem value="PENDING">Хүлээгдэж буй</SelectItem>
             <SelectItem value="CONFIRMED">Баталгаажсан</SelectItem>
+            <SelectItem value="CHECKED_OUT">Гарсан</SelectItem>
             <SelectItem value="NO_SHOW">⚠️ Ирээгүй</SelectItem>
             <SelectItem value="CANCELLED">Цуцлагдсан</SelectItem>
           </SelectContent>
