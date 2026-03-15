@@ -29,15 +29,15 @@ export async function seedDatabase() {
       .returning();
 
     await db.insert(rooms).values([
-      { roomNumber: "101", floor: "1", categoryId: standard.id, status: "AVAILABLE" as const },
-      { roomNumber: "102", floor: "1", categoryId: standard.id, status: "OCCUPIED" as const },
-      { roomNumber: "103", floor: "1", categoryId: standard.id, status: "AVAILABLE" as const },
-      { roomNumber: "201", floor: "2", categoryId: deluxe.id, status: "AVAILABLE" as const },
-      { roomNumber: "202", floor: "2", categoryId: deluxe.id, status: "CLEANING" as const },
-      { roomNumber: "301", floor: "3", categoryId: vip.id, status: "AVAILABLE" as const },
-      { roomNumber: "302", floor: "3", categoryId: vip.id, status: "OCCUPIED" as const },
-      { roomNumber: "401", floor: "4", categoryId: family.id, status: "AVAILABLE" as const },
-      { roomNumber: "402", floor: "4", categoryId: family.id, status: "PENDING" as const },
+      { roomNumber: "101", floorId: "1", categoryId: standard.id, status: "AVAILABLE" as const },
+      { roomNumber: "102", floorId: "1", categoryId: standard.id, status: "OCCUPIED" as const },
+      { roomNumber: "103", floorId: "1", categoryId: standard.id, status: "AVAILABLE" as const },
+      { roomNumber: "201", floorId: "2", categoryId: deluxe.id, status: "AVAILABLE" as const },
+      { roomNumber: "202", floorId: "2", categoryId: deluxe.id, status: "CLEANING" as const },
+      { roomNumber: "301", floorId: "3", categoryId: vip.id, status: "AVAILABLE" as const },
+      { roomNumber: "302", floorId: "3", categoryId: vip.id, status: "OCCUPIED" as const },
+      { roomNumber: "401", floorId: "4", categoryId: family.id, status: "AVAILABLE" as const },
+      { roomNumber: "402", floorId: "4", categoryId: family.id, status: "PENDING" as const },
     ]);
 
     console.log("Room categories and rooms seeded");

@@ -36,7 +36,7 @@ import { Separator } from "@/components/ui/separator";
 interface RoomGridItem {
   id: string;
   roomNumber: string;
-  floor: string;
+  floorId: string;
   categoryId: string;
   status: "AVAILABLE" | "OCCUPIED" | "DUE_OUT" | "PENDING" | "CLEANING" | "CLEANING_IN_PROGRESS" | "INSPECTED" | "OUT_OF_ORDER" | "OUT_OF_SERVICE";
   category: RoomCategory | null;
@@ -709,7 +709,7 @@ export default function RoomGridPage() {
   });
 
   const createGuestMutation = useMutation({
-    mutationFn: (data: NewGuestValues) => apiRequest("POST", "/api/guests", data),
+    mutationFn: (data: NewGuestValues) => apiRequest("POST", "/api/guests", data).then(r => r.json()),
     onSuccess: async (newGuest: Guest) => {
       await queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
       form.setValue("guestId", newGuest.id);

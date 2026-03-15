@@ -16,6 +16,17 @@ export const roomStatusEnum = pgEnum("room_status", [
 ]);
 export const bookingStatusEnum = pgEnum("booking_status", ["PENDING", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELLED", "NO_SHOW", "EXTENDED"]);
 
+export type RoomStatus = (typeof roomStatusEnum.enumValues)[number];
+export type BookingStatus = (typeof bookingStatusEnum.enumValues)[number];
+
+export const ROOM_STATUS = Object.fromEntries(
+  roomStatusEnum.enumValues.map((v) => [v, v])
+) as Record<RoomStatus, RoomStatus>;
+
+export const BOOKING_STATUS = Object.fromEntries(
+  bookingStatusEnum.enumValues.map((v) => [v, v])
+) as Record<BookingStatus, BookingStatus>;
+
 export const roomCategories = pgTable("room_categories", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),

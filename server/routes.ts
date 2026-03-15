@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertRoomCategorySchema, insertFloorSchema, insertRoomSchema, insertGuestSchema, insertBookingSchema, insertTransactionSchema, insertServiceSchema, insertInventorySchema, insertInventoryPurchaseSchema, insertStaffSchema } from "@shared/schema";
+import { insertRoomCategorySchema, insertFloorSchema, insertRoomSchema, insertGuestSchema, insertBookingSchema, insertTransactionSchema, insertServiceSchema, insertInventorySchema, insertInventoryPurchaseSchema, insertStaffSchema, type BookingStatus, type RoomStatus } from "@shared/schema";
 function logJob(message: string) {
   const t = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
   console.log(`${t} [noshow-job] ${message}`);
@@ -317,7 +317,7 @@ export async function registerRoutes(
         roomIds = matchingRooms.map(r => r.id);
       }
 
-      const notStatuses = (!status || status === "ALL")
+      const notStatuses: BookingStatus[] = (!status || status === "ALL")
         ? ["CHECKED_IN", "EXTENDED", "CHECKED_OUT"]
         : [];
       const result = await storage.getBookingsPaginated(page, limit, status, guestIds, roomIds, notStatuses);
@@ -844,7 +844,7 @@ export async function registerRoutes(
     const service = await storage.getService(req.params.id);
     if (!service) return res.status(404).json({ message: "Service not found" });
     if (service.type !== "PACKAGE") return res.status(400).json({ message: "Service is not a PACKAGE" });
-    const uniqueIds = [...new Set(serviceIds.filter((id: string) => id && id !== req.params.id))];
+    const uniqueIds = Array.from(new Set(serviceIds.filter((id: string) => id && id !== req.params.id)));
     if (uniqueIds.length > 0) {
       const allSvcs = await storage.getServices();
       const svcMap = new Map(allSvcs.map(s => [s.id, s]));

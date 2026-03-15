@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface RoomGridItem {
   id: string;
   roomNumber: string;
-  floor: string;
+  floorId: string;
   categoryId: string;
   status: "AVAILABLE" | "OCCUPIED" | "PENDING" | "CLEANING" | "CLEANING_IN_PROGRESS" | "INSPECTED" | "OUT_OF_ORDER" | "OUT_OF_SERVICE";
   category: RoomCategory | null;

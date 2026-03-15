@@ -9,6 +9,8 @@ import {
   type Room, type InsertRoom,
   type Guest, type InsertGuest,
   type Booking,
+  type BookingStatus,
+  type RoomStatus,
   type Transaction,
   type Service, type InsertService,
   type BookingService, type InsertBookingService,
@@ -135,7 +137,7 @@ export interface IStorage {
   getBookingsByDateRange(start: Date, end: Date): Promise<Booking[]>;
   getTreatmentPlansByDate(date: Date): Promise<TreatmentPlan[]>;
   getActiveStayBookings(includeRecentCheckouts?: boolean): Promise<Booking[]>;
-  getBookingsPaginated(page: number, limit: number, status?: string, guestIds?: string[], roomIds?: string[], notStatuses?: string[]): Promise<{ data: Booking[]; total: number; totalPages: number }>;
+  getBookingsPaginated(page: number, limit: number, status?: string, guestIds?: string[], roomIds?: string[], notStatuses?: BookingStatus[]): Promise<{ data: Booking[]; total: number; totalPages: number }>;
   getGuestsPaginated(page: number, limit: number, search?: string): Promise<{ data: Guest[]; total: number; totalPages: number }>;
   searchGuests(query: string, limit?: number): Promise<Guest[]>;
   searchRooms(query: string): Promise<Room[]>;
@@ -832,7 +834,7 @@ export class DatabaseStorage implements IStorage {
     );
   }
 
-  async getBookingsPaginated(page: number, limit: number, status?: string, guestIds?: string[], roomIds?: string[], notStatuses?: string[]): Promise<{ data: Booking[]; total: number; totalPages: number }> {
+  async getBookingsPaginated(page: number, limit: number, status?: string, guestIds?: string[], roomIds?: string[], notStatuses?: BookingStatus[]): Promise<{ data: Booking[]; total: number; totalPages: number }> {
     const hasGuestFilter = guestIds !== undefined;
     const hasRoomFilter = roomIds !== undefined;
     const noSearchResults = (hasGuestFilter && guestIds!.length === 0) && (hasRoomFilter && roomIds!.length === 0);
@@ -846,7 +848,7 @@ export class DatabaseStorage implements IStorage {
     }
     if (notStatuses && notStatuses.length > 0) {
       for (const ns of notStatuses) {
-        conditions.push(ne(bookings.status, ns as any));
+        conditions.push(ne(bookings.status, ns));
       }
     }
 

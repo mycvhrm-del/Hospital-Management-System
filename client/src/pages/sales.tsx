@@ -193,13 +193,13 @@ export default function SalesPage() {
   const openPayment = (booking: Booking) => {
     const balance = Number(booking.totalAmount) - Number(booking.depositPaid);
     setPaymentBooking(booking);
-    paymentForm.reset({ amount: String(balance), type: "FINAL", paymentMethod: "CASH" });
+    paymentForm.reset({ amount: String(balance), paymentMethod: "CASH" });
   };
 
   const openCheckout = (booking: Booking) => {
     setCheckoutBooking(booking);
     const balance = Number(booking.totalAmount) - Number(booking.depositPaid);
-    checkoutPaymentForm.reset({ amount: String(balance), type: "FINAL", paymentMethod: "CASH" });
+    checkoutPaymentForm.reset({ paymentMethod: "CASH" });
   };
 
   return (
